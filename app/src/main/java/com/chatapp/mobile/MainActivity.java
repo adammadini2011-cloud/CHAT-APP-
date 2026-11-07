@@ -50,6 +50,7 @@ public class MainActivity extends AppCompatActivity {
     private String currentConversationTitle = "";
     private TextView typingIndicator;
     private Runnable typingUpdateRunnable;
+    private final Runnable presenceHeartbeat = new Runnable(){@Override public void run(){if(!isFinishing()){setPresence(true);handler.postDelayed(this,60000L);}}};
     private boolean inChat = false;
     private final Runnable refreshRunnable = new Runnable() {
         @Override public void run() {
@@ -465,7 +466,14 @@ public class MainActivity extends AppCompatActivity {
         }catch(Exception e){runOnUiThread(()->message("Group details: "+e.getMessage()));}});
         rename.setOnClickListener(v->{if(!owner[0]){message("Only the group owner can rename this group.");return;}io.execute(()->{try{JSONObject p=new JSONObject();p.put("title",title.getText().toString().trim());SupabaseClient.patch("/rest/v1/conversations?id=eq."+SupabaseClient.enc(cid),token(),p);currentConversationTitle=title.getText().toString().trim();runOnUiThread(()->message("Group name updated."));}catch(Exception e){runOnUiThread(()->message(e.getMessage()));}});});
         add.setOnClickListener(v->{if(!owner[0]){message("Only the group owner can add members.");return;}String[] handles=addNames.getText().toString().split(",");io.execute(()->{int added=0;try{for(String raw:handles){String h=raw.trim().replace("@","");if(h.isEmpty())continue;JSONArray found=SupabaseClient.getArray("/rest/v1/profiles?select=id&username=eq."+SupabaseClient.enc(h)+"&limit=1",token());if(found.length()==0)continue;String id=found.getJSONObject(0).optString("id");if(id.equals(uid()))continue;JSONArray existing=SupabaseClient.getArray("/rest/v1/conversation_members?select=user_id&conversation_id=eq."+SupabaseClient.enc(cid)+"&user_id=eq."+SupabaseClient.enc(id),token());if(existing.length()>0)continue;JSONObject m=new JSONObject();m.put("conversation_id",cid);m.put("user_id",id);m.put("role","member");SupabaseClient.post("/rest/v1/conversation_members",token(),m);added++;}final int count=added;runOnUiThread(()->{message("Added "+count+" member(s).");showGroupManagement();});}catch(Exception e){runOnUiThread(()->message("Could not add members: "+e.getMessage()));}});});
-        leave.setOnClickListener(v->new AlertDialog.Builder(this).setTitle("Leave group?").setMessage("You will no longer see this group.").setPositiveButton("Leave",(d,w)->io.execute(()->{try{SupabaseClient.delete("/rest/v1/conversation_members?conversation_id=eq."+SupabaseClient.enc(cid)+"&user_id=eq."+SupabaseClient.enc(uid()),token());runOnUiThread(()->{inChat=false;showHome();});}catch(Exception e){runOnUiThread(()->message(e.getMessage()));}})).setNegativeButton("Cancel",null).show());
+        leave.setOnClickListener(v->new AlertDialog.Builder(this).setTitle("Leave group?").setMessage("You will no longer see this group.").setPositiveButton("Leave",(d,w)->io.execute(()->{try{
+            if(owner[0]){
+                JSONArray remaining=SupabaseClient.getArray("/rest/v1/conversation_members?select=user_id&conversation_id=eq."+SupabaseClient.enc(cid)+"&user_id=neq."+SupabaseClient.enc(uid()),token());
+                if(remaining.length()>0){runOnUiThread(()->message("As group owner, remove all other members before leaving. This prevents an ownerless group."));return;}
+            }
+            SupabaseClient.delete("/rest/v1/conversation_members?conversation_id=eq."+SupabaseClient.enc(cid)+"&user_id=eq."+SupabaseClient.enc(uid()),token());
+            runOnUiThread(()->{inChat=false;showHome();});
+        }catch(Exception e){runOnUiThread(()->message(e.getMessage()));}})).setNegativeButton("Cancel",null).show());
     }
     private void showProfile() {
         base("Profile","Back",v->showHome());
@@ -533,7 +541,7 @@ public class MainActivity extends AppCompatActivity {
         if(userId.isEmpty()||access.isEmpty())return;
         io.execute(()->{try{JSONObject p=new JSONObject();p.put("is_online",online);p.put("last_seen_at",nowIso());SupabaseClient.patch("/rest/v1/profiles?id=eq."+SupabaseClient.enc(userId),access,p);}catch(Exception ignored){}});
     }
-    @Override protected void onStart(){super.onStart();setPresence(true);}
-    @Override protected void onStop(){if(inChat&&!currentConversationId.isEmpty())setTypingStatus(currentConversationId,false);setPresence(false);super.onStop();}
+    @Override protected void onStart(){super.onStart();setPresence(true);handler.removeCallbacks(presenceHeartbeat);handler.postDelayed(presenceHeartbeat,60000L);}
+    @Override protected void onStop(){handler.removeCallbacks(presenceHeartbeat);if(inChat&&!currentConversationId.isEmpty())setTypingStatus(currentConversationId,false);setPresence(false);super.onStop();}
     @Override protected void onDestroy(){handler.removeCallbacks(refreshRunnable);io.shutdown();super.onDestroy();}
 }
