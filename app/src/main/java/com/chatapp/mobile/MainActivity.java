@@ -229,7 +229,7 @@ public class MainActivity extends AppCompatActivity {
     }
     private void openChat(ChatItem item) {
         currentConversationId=item.id; currentConversationTitle=item.title; inChat=true;
-        base(item.title,"Back",v->{inChat=false;handler.removeCallbacks(refreshRunnable);showHome();});
+        base(item.title,item.group?"Manage":"Back",v->{if(item.group)showGroupManagement();else{inChat=false;handler.removeCallbacks(refreshRunnable);showHome();}});
         ScrollView sc=new ScrollView(this); sc.setFillViewport(false); content.addView(sc,new LinearLayout.LayoutParams(-1,0,1));
         LinearLayout messages=new LinearLayout(this); messages.setOrientation(LinearLayout.VERTICAL); sc.addView(messages);
         LinearLayout composer=new LinearLayout(this); composer.setGravity(Gravity.CENTER_VERTICAL); composer.setPadding(0,dp(8),0,0);
@@ -355,6 +355,50 @@ public class MainActivity extends AppCompatActivity {
                 runOnUiThread(()->openChat(new ChatItem(cid,title,true)));
             }catch(Exception e){runOnUiThread(()->message("Group creation failed: "+e.getMessage()));}
         });
+    }
+    private void showGroupManagement() {
+        final String cid=currentConversationId;
+        base("Group settings","Back",v->openChat(new ChatItem(cid,currentConversationTitle,true)));
+        EditText title=field("Group name",InputType.TYPE_CLASS_TEXT);
+        Button rename=button("Save group name");
+        content.addView(title,match(dp(52)));content.addView(rename,match(dp(48)));
+        EditText addNames=field("Add usernames, separated by commas",InputType.TYPE_CLASS_TEXT);
+        Button add=button("Add members");
+        content.addView(addNames,match(dp(52)));content.addView(add,match(dp(48)));
+        TextView memberHeading=text("Members",16,Color.WHITE,true);
+        LinearLayout.LayoutParams mh=match(dp(38));mh.topMargin=dp(14);content.addView(memberHeading,mh);
+        LinearLayout memberList=new LinearLayout(this);memberList.setOrientation(LinearLayout.VERTICAL);
+        ScrollView scroll=new ScrollView(this);scroll.addView(memberList);
+        content.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));
+        Button leave=button("Leave group");content.addView(leave,match(dp(48)));
+        final boolean[] owner={false};
+        io.execute(()->{try{
+            JSONArray conv=SupabaseClient.getArray("/rest/v1/conversations?select=title,created_by&id=eq."+SupabaseClient.enc(cid)+"&limit=1",token());
+            if(conv.length()>0){JSONObject row=conv.getJSONObject(0);owner[0]=uid().equals(row.optString("created_by"));runOnUiThread(()->title.setText(row.optString("title","")));}
+            JSONArray members=SupabaseClient.getArray("/rest/v1/conversation_members?select=user_id,role&conversation_id=eq."+SupabaseClient.enc(cid),token());
+            runOnUiThread(()->{
+                memberList.removeAllViews();
+                for(int i=0;i<members.length();i++){
+                    JSONObject member=members.optJSONObject(i);if(member==null)continue;
+                    String memberId=member.optString("user_id"),role=member.optString("role","member");
+                    io.execute(()->{try{
+                        JSONArray profiles=SupabaseClient.getArray("/rest/v1/profiles?select=display_name,username&id=eq."+SupabaseClient.enc(memberId)+"&limit=1",token());
+                        String label=memberId.equals(uid())?"You":memberId;
+                        if(profiles.length()>0){JSONObject profile=profiles.getJSONObject(0);label=profile.optString("display_name",profile.optString("username",label));if(!profile.optString("username","").isEmpty())label+="  @"+profile.optString("username");}
+                        final String display=label+"  ·  "+role;
+                        runOnUiThread(()->{
+                            Button row=button(display);row.setGravity(Gravity.CENTER_VERTICAL|Gravity.START);
+                            LinearLayout.LayoutParams rp=match(dp(48));rp.bottomMargin=dp(5);memberList.addView(row,rp);
+                            if(owner[0]&&!memberId.equals(uid()))row.setOnLongClickListener(v->{new AlertDialog.Builder(this).setTitle("Remove member?").setMessage(display).setPositiveButton("Remove",(d,w)->io.execute(()->{try{SupabaseClient.delete("/rest/v1/conversation_members?conversation_id=eq."+SupabaseClient.enc(cid)+"&user_id=eq."+SupabaseClient.enc(memberId),token());runOnUiThread(()->{message("Member removed.");showGroupManagement();});}catch(Exception e){runOnUiThread(()->message(e.getMessage()));}})).setNegativeButton("Cancel",null).show();return true;});
+                        });
+                    }catch(Exception ignored){}});
+                }
+            });
+            if(!owner[0])runOnUiThread(()->{rename.setEnabled(false);add.setEnabled(false);});
+        }catch(Exception e){runOnUiThread(()->message("Group details: "+e.getMessage()));}});
+        rename.setOnClickListener(v->{if(!owner[0]){message("Only the group owner can rename this group.");return;}io.execute(()->{try{JSONObject p=new JSONObject();p.put("title",title.getText().toString().trim());SupabaseClient.patch("/rest/v1/conversations?id=eq."+SupabaseClient.enc(cid),token(),p);currentConversationTitle=title.getText().toString().trim();runOnUiThread(()->message("Group name updated."));}catch(Exception e){runOnUiThread(()->message(e.getMessage()));}});});
+        add.setOnClickListener(v->{if(!owner[0]){message("Only the group owner can add members.");return;}String[] handles=addNames.getText().toString().split(",");io.execute(()->{int added=0;try{for(String raw:handles){String h=raw.trim().replace("@","");if(h.isEmpty())continue;JSONArray found=SupabaseClient.getArray("/rest/v1/profiles?select=id&username=eq."+SupabaseClient.enc(h)+"&limit=1",token());if(found.length()==0)continue;String id=found.getJSONObject(0).optString("id");if(id.equals(uid()))continue;JSONArray existing=SupabaseClient.getArray("/rest/v1/conversation_members?select=user_id&conversation_id=eq."+SupabaseClient.enc(cid)+"&user_id=eq."+SupabaseClient.enc(id),token());if(existing.length()>0)continue;JSONObject m=new JSONObject();m.put("conversation_id",cid);m.put("user_id",id);m.put("role","member");SupabaseClient.post("/rest/v1/conversation_members",token(),m);added++;}final int count=added;runOnUiThread(()->{message("Added "+count+" member(s).");showGroupManagement();});}catch(Exception e){runOnUiThread(()->message("Could not add members: "+e.getMessage()));}});});
+        leave.setOnClickListener(v->new AlertDialog.Builder(this).setTitle("Leave group?").setMessage("You will no longer see this group.").setPositiveButton("Leave",(d,w)->io.execute(()->{try{SupabaseClient.delete("/rest/v1/conversation_members?conversation_id=eq."+SupabaseClient.enc(cid)+"&user_id=eq."+SupabaseClient.enc(uid()),token());runOnUiThread(()->{inChat=false;showHome();});}catch(Exception e){runOnUiThread(()->message(e.getMessage()));}})).setNegativeButton("Cancel",null).show());
     }
     private void showProfile() {
         base("Profile","Back",v->showHome());
