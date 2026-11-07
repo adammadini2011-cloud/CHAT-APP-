@@ -24,7 +24,7 @@ Native Android messaging app project built with Java, XML layouts, Android SDK, 
 - True instant push notifications; the background worker can be delayed by Android battery/network restrictions.
 - Full Arabic translation coverage and full RTL/accessibility polish.
 - Full device-level testing of account creation, multiple-user chats, groups, receipts, blocking, and all attachment types.
-- Native Supabase Realtime/WebSocket updates; foreground chat currently uses REST polling.\n- Full device-level testing of account creation, multiple-user chats, groups, receipts, blocking, and all attachment types.\n- Release signing and production deployment checks.
+- Release signing and production deployment checks.
 
 ## Backend and security
 The Android client contains only the Supabase project URL and public publishable key in `SupabaseConfig.java`. Never put a service-role or secret key in an Android client.
