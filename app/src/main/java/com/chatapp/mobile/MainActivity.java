@@ -53,20 +53,52 @@ public class MainActivity extends AppCompatActivity {
         }
     };
 
+    private boolean isArabic(){return "ar".equals(getSharedPreferences("app_settings",MODE_PRIVATE).getString("language","en"));}
+    private String tr(String s){
+        if(!isArabic()||s==null)return s;
+        switch(s){
+            case "Sign in":return "تسجيل الدخول";
+            case "Create account":return "إنشاء حساب";
+            case "Email address":return "البريد الإلكتروني";
+            case "Password":return "كلمة المرور";
+            case "Your chats":return "محادثاتك";
+            case "Find people":return "ابحث عن أشخاص";
+            case "New group":return "مجموعة جديدة";
+            case "Profile":return "الملف الشخصي";
+            case "Search":return "بحث";
+            case "Back":return "رجوع";
+            case "Send":return "إرسال";
+            case "Write a message…":return "اكتب رسالة…";
+            case "Create group":return "إنشاء مجموعة";
+            case "Group name":return "اسم المجموعة";
+            case "Members":return "الأعضاء";
+            case "Leave group":return "مغادرة المجموعة";
+            case "Save profile":return "حفظ الملف الشخصي";
+            case "Display name":return "الاسم الظاهر";
+            case "Username":return "اسم المستخدم";
+            case "About you":return "نبذة عنك";
+            case "Sign out":return "تسجيل الخروج";
+            case "Edit message":return "تعديل الرسالة";
+            case "Delete message":return "حذف الرسالة";
+            case "Cancel":return "إلغاء";
+            case "Language: English":return "اللغة: العربية";
+            default:return s;
+        }
+    }
     private int dp(float n) { return (int)(n * getResources().getDisplayMetrics().density + 0.5f); }
     private TextView text(String value, int size, int color, boolean bold) {
         TextView t = new TextView(this);
-        t.setText(value); t.setTextSize(size); t.setTextColor(color);
+        t.setText(tr(value)); t.setTextSize(size); t.setTextColor(color);
         if (bold) t.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         return t;
     }
     private Button button(String label) {
-        Button b = new Button(this); b.setText(label); b.setAllCaps(false);
+        Button b = new Button(this); b.setText(tr(label)); b.setAllCaps(false);
         b.setTextColor(Color.WHITE); b.setBackgroundTintList(android.content.res.ColorStateList.valueOf(0xFF263750));
         return b;
     }
     private void base(String title, String action, View.OnClickListener listener) {
-        root = new LinearLayout(this); root.setOrientation(LinearLayout.VERTICAL); root.setBackgroundColor(0xFF101827);
+        root = new LinearLayout(this); root.setLayoutDirection(isArabic()?View.LAYOUT_DIRECTION_RTL:View.LAYOUT_DIRECTION_LTR); root.setOrientation(LinearLayout.VERTICAL); root.setBackgroundColor(0xFF101827);
         setContentView(root);
         toolbar = new LinearLayout(this); toolbar.setGravity(Gravity.CENTER_VERTICAL); toolbar.setPadding(dp(16),dp(10),dp(12),dp(10));
         toolbar.setBackgroundColor(0xFF17243A); root.addView(toolbar,new LinearLayout.LayoutParams(-1,dp(60)));
@@ -83,7 +115,7 @@ public class MainActivity extends AppCompatActivity {
         PeriodicWorkRequest request=new PeriodicWorkRequest.Builder(ChatNotificationWorker.class,15,TimeUnit.MINUTES).build();
         WorkManager.getInstance(this).enqueueUniquePeriodicWork("chat-message-check",ExistingPeriodicWorkPolicy.KEEP,request);
     }
-    private void message(String s) { Toast.makeText(this,s,Toast.LENGTH_LONG).show(); }
+    private void message(String s) { Toast.makeText(this,tr(s),Toast.LENGTH_LONG).show(); }
 
     @Override protected void onCreate(Bundle state) {
         super.onCreate(state);
@@ -107,7 +139,7 @@ public class MainActivity extends AppCompatActivity {
         signUp.setOnClickListener(v->auth(email.getText().toString().trim(),pass.getText().toString(),true,status));
     }
     private EditText field(String hint,int type) {
-        EditText e=new EditText(this); e.setSingleLine(true); e.setHint(hint); e.setInputType(type);
+        EditText e=new EditText(this); e.setSingleLine(true); e.setHint(tr(hint)); e.setInputType(type);
         e.setTextColor(Color.WHITE); e.setHintTextColor(0xFFAAB6C8); e.setPadding(dp(14),0,dp(14),0);
         e.setBackgroundTintList(android.content.res.ColorStateList.valueOf(0xFF35C7A5)); return e;
     }
@@ -420,6 +452,9 @@ public class MainActivity extends AppCompatActivity {
         EditText bio=field("About you",InputType.TYPE_CLASS_TEXT|InputType.TYPE_TEXT_FLAG_CAP_SENTENCES);
         content.addView(display,match(dp(54)));content.addView(username,match(dp(54)));content.addView(bio,match(dp(54)));
         Button save=button("Save profile");LinearLayout.LayoutParams sp=match(dp(50));sp.topMargin=dp(12);content.addView(save,sp);
+        Button language=button(isArabic()?"اللغة: العربية":"Language: English");
+        LinearLayout.LayoutParams langParams=match(dp(48));langParams.topMargin=dp(10);content.addView(language,langParams);
+        language.setOnClickListener(v->{getSharedPreferences("app_settings",MODE_PRIVATE).edit().putString("language",isArabic()?"en":"ar").apply();showProfile();});
         Button logout=button("Sign out");LinearLayout.LayoutParams p=match(dp(52));p.topMargin=dp(10);content.addView(logout,p);
         io.execute(()->{
             try{
