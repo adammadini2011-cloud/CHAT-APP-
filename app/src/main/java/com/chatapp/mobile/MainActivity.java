@@ -696,7 +696,8 @@ public class MainActivity extends AppCompatActivity {
             SupabaseClient.patch("/rest/v1/profiles?id=eq."+SupabaseClient.enc(userId),access,p);
         }catch(Exception ignored){}});
     }
-    @Override protected void onNewIntent(Intent intent){super.onNewIntent(intent);setIntent(intent);if(handleAuthRedirect(intent))return;}\n    @Override protected void onStart(){super.onStart();activityStarted=true;setPresence(true);handler.removeCallbacks(presenceHeartbeat);handler.postDelayed(presenceHeartbeat,60000L);if(inChat&&!currentConversationId.isEmpty()){startRealtime(currentConversationId);handler.removeCallbacks(refreshRunnable);handler.postDelayed(refreshRunnable,5000);}}
+    @Override protected void onNewIntent(Intent intent){super.onNewIntent(intent);setIntent(intent);if(handleAuthRedirect(intent))return;}
+    @Override protected void onStart(){super.onStart();activityStarted=true;setPresence(true);handler.removeCallbacks(presenceHeartbeat);handler.postDelayed(presenceHeartbeat,60000L);if(inChat&&!currentConversationId.isEmpty()){startRealtime(currentConversationId);handler.removeCallbacks(refreshRunnable);handler.postDelayed(refreshRunnable,5000);}}
     @Override protected void onStop(){activityStarted=false;handler.removeCallbacks(presenceHeartbeat);if(inChat&&!currentConversationId.isEmpty())setTypingStatus(currentConversationId,false);stopRealtime();setPresence(false);super.onStop();}
     @Override protected void onDestroy(){stopRealtime();handler.removeCallbacks(refreshRunnable);io.shutdown();super.onDestroy();}
 }
