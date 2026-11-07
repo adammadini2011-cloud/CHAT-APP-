@@ -122,11 +122,26 @@ public class MainActivity extends AppCompatActivity {
         return t;
     }
     private Button button(String label) {
-        Button b = new Button(this); b.setText(tr(label)); b.setAllCaps(false);
-        b.setTextColor(Color.WHITE); b.setTextSize(14); b.setTypeface(Typeface.DEFAULT,Typeface.BOLD);
-        GradientDrawable shape=new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT,new int[]{0xFF245BFF,0xFF713BEB});
-        shape.setCornerRadius(dp(16)); b.setBackground(shape); b.setPadding(dp(16),0,dp(16),0);
-        b.setStateListAnimator(null); b.setElevation(dp(2));
+        Button b = new Button(this);
+        b.setText(tr(label));
+        b.setAllCaps(false);
+        b.setTextColor(Color.WHITE);
+        b.setTextSize(14);
+        b.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        b.setLetterSpacing(0.01f);
+        b.setGravity(Gravity.CENTER);
+        GradientDrawable shape = new GradientDrawable(
+            GradientDrawable.Orientation.LEFT_RIGHT,
+            new int[]{0xFF16C7B5, 0xFF245BFF}
+        );
+        shape.setCornerRadius(dp(18));
+        android.content.res.ColorStateList rippleColor =
+            android.content.res.ColorStateList.valueOf(0x33FFFFFF);
+        b.setBackground(new android.graphics.drawable.RippleDrawable(rippleColor, shape, null));
+        b.setPadding(dp(18), 0, dp(18), 0);
+        b.setMinHeight(dp(48));
+        b.setStateListAnimator(null);
+        b.setElevation(dp(2));
         return b;
     }
     private void base(String title, String action, View.OnClickListener listener) {
@@ -517,11 +532,12 @@ public class MainActivity extends AppCompatActivity {
                     translated.setPadding(dp(8),dp(5),dp(8),dp(2));
                     receivedWrap.addView(translated);
                     Button translateButton=button("Translate");
+                    final String textToTranslate = body;
                     translateButton.setTextSize(11);
                     translateButton.setOnClickListener(v->{
                         translateButton.setEnabled(false);
                         translateButton.setText("Translating…");
-                        translateMessage(body,translated,()->{
+                        translateMessage(textToTranslate,translated,()->{
                             translateButton.setEnabled(true);
                             translateButton.setText("Translate");
                         });
