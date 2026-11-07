@@ -582,9 +582,14 @@ public class MainActivity extends AppCompatActivity {
     }
     private void setPresence(boolean online) {
         final String userId=ChatSession.userId(this);
-        final String access=token();
-        if(userId.isEmpty()||access.isEmpty())return;
-        io.execute(()->{try{JSONObject p=new JSONObject();p.put("is_online",online);p.put("last_seen_at",nowIso());SupabaseClient.patch("/rest/v1/profiles?id=eq."+SupabaseClient.enc(userId),access,p);}catch(Exception ignored){}});
+        if(userId.isEmpty())return;
+        io.execute(()->{try{
+            String access=ChatSession.validToken(getApplicationContext());
+            if(access.isEmpty())return;
+            if(realtime!=null)realtime.updateAccessToken(access);
+            JSONObject p=new JSONObject();p.put("is_online",online);p.put("last_seen_at",nowIso());
+            SupabaseClient.patch("/rest/v1/profiles?id=eq."+SupabaseClient.enc(userId),access,p);
+        }catch(Exception ignored){}});
     }
     @Override protected void onStart(){super.onStart();activityStarted=true;setPresence(true);handler.removeCallbacks(presenceHeartbeat);handler.postDelayed(presenceHeartbeat,60000L);if(inChat&&!currentConversationId.isEmpty())startRealtime(currentConversationId);}
     @Override protected void onStop(){activityStarted=false;handler.removeCallbacks(presenceHeartbeat);if(inChat&&!currentConversationId.isEmpty())setTypingStatus(currentConversationId,false);stopRealtime();setPresence(false);super.onStop();}
