@@ -137,6 +137,7 @@ public class MainActivity extends AppCompatActivity {
 
     @Override protected void onCreate(Bundle state) {
         super.onCreate(state);
+        if(handleAuthRedirect(getIntent())) return;
         String token=ChatSession.token(this);
         if (token.isEmpty()) showAuth(); else showHome();
     }
