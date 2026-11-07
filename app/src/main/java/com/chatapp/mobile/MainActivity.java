@@ -141,20 +141,95 @@ public class MainActivity extends AppCompatActivity {
         if (token.isEmpty()) showAuth(); else showHome();
     }
     private void showAuth() {
-        inChat=false; base("CHAT","",null);
+        inChat=false; base("Infinity Chat","",null);
         content.setGravity(Gravity.CENTER_HORIZONTAL);
-        TextView brand=text("CHAT",34,Color.WHITE,true); brand.setLetterSpacing(0.15f);
-        content.addView(brand); TextView sub=text("Stay close. Talk freely.",14,0xFFAAB6C8,false);
-        LinearLayout.LayoutParams sp=new LinearLayout.LayoutParams(-2,-2); sp.bottomMargin=dp(28); content.addView(sub,sp);
+        content.setPadding(dp(24),dp(28),dp(24),dp(18));
+        TextView brand=text("∞",58,0xFF21D8FF,true); brand.setGravity(Gravity.CENTER);
+        content.addView(brand,match(dp(70)));
+        TextView title=text("Infinity Chat",29,Color.WHITE,true); title.setGravity(Gravity.CENTER);
+        content.addView(title);
+        TextView sub=text("Your conversations, connected.",14,0xFFB8C5E8,false); sub.setGravity(Gravity.CENTER);
+        LinearLayout.LayoutParams sp=match(dp(42)); sp.bottomMargin=dp(18); content.addView(sub,sp);
         EditText email=field("Email address",InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS);
+        content.addView(email,match(dp(54)));
+        LinearLayout passwordRow=new LinearLayout(this); passwordRow.setOrientation(LinearLayout.HORIZONTAL);
+        passwordRow.setGravity(Gravity.CENTER_VERTICAL);
         EditText pass=field("Password",InputType.TYPE_CLASS_TEXT|InputType.TYPE_TEXT_VARIATION_PASSWORD);
-        content.addView(email,match(dp(54))); content.addView(pass,match(dp(54)));
+        passwordRow.addView(pass,new LinearLayout.LayoutParams(0,dp(54),1));
+        Button visibility=button("Show");
+        LinearLayout.LayoutParams eyeParams=new LinearLayout.LayoutParams(dp(82),dp(50)); eyeParams.leftMargin=dp(8);
+        passwordRow.addView(visibility,eyeParams);
+        content.addView(passwordRow,match(dp(58)));
+        visibility.setOnClickListener(v->{
+            boolean showing=(pass.getInputType()&InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD)==InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD;
+            int cursor=pass.getSelectionStart();
+            pass.setInputType(showing?InputType.TYPE_CLASS_TEXT|InputType.TYPE_TEXT_VARIATION_PASSWORD:InputType.TYPE_CLASS_TEXT|InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD);
+            pass.setSelection(Math.max(0,Math.min(cursor,pass.length())));
+            visibility.setText(showing?"Show":"Hide");
+        });
         Button signIn=button("Sign in"), signUp=button("Create account");
         LinearLayout.LayoutParams bp=match(dp(52)); bp.topMargin=dp(14); content.addView(signIn,bp);
         LinearLayout.LayoutParams bp2=match(dp(52)); bp2.topMargin=dp(8); content.addView(signUp,bp2);
-        TextView status=text("",13,0xFFF2A7A7,false); content.addView(status);
+        TextView divider=text("OR CONTINUE WITH",11,0xFF8998BE,true);
+        divider.setGravity(Gravity.CENTER);
+        LinearLayout.LayoutParams dpv=match(dp(42)); dpv.topMargin=dp(10); content.addView(divider,dpv);
+        Button google=socialButton("Continue with Google",0xFFFFFFFF,0xFF18213D);
+        Button facebook=socialButton("Continue with Facebook",0xFF1877F2,Color.WHITE);
+        LinearLayout.LayoutParams gp=match(dp(50)); gp.topMargin=dp(5); content.addView(google,gp);
+        LinearLayout.LayoutParams fp=match(dp(50)); fp.topMargin=dp(8); content.addView(facebook,fp);
+        TextView status=text("",12,0xFFFFA8B5,false);
+        status.setGravity(Gravity.CENTER);
+        LinearLayout.LayoutParams st=match(dp(52)); st.topMargin=dp(8); content.addView(status,st);
         signIn.setOnClickListener(v->auth(email.getText().toString().trim(),pass.getText().toString(),false,status));
         signUp.setOnClickListener(v->auth(email.getText().toString().trim(),pass.getText().toString(),true,status));
+        google.setOnClickListener(v->startSocialLogin("google",status));
+        facebook.setOnClickListener(v->startSocialLogin("facebook",status));
+    }
+    private Button socialButton(String label,int background,int foreground) {
+        Button b=new Button(this); b.setText(label); b.setAllCaps(false); b.setTextColor(foreground);
+        b.setTextSize(14); b.setTypeface(Typeface.DEFAULT,Typeface.BOLD);
+        GradientDrawable shape=new GradientDrawable(); shape.setColor(background); shape.setCornerRadius(dp(15));
+        b.setBackground(shape); b.setStateListAnimator(null); return b;
+    }
+    private void startSocialLogin(String provider,TextView status) {
+        try {
+            String redirect="infinitychat://auth/callback";
+            String url=SupabaseConfig.PROJECT_URL+"/auth/v1/authorize?provider="+provider+"&redirect_to="+SupabaseClient.enc(redirect);
+            status.setText("Opening "+(provider.equals("google")?"Google":"Facebook")+" sign-in…");
+            startActivity(new Intent(Intent.ACTION_VIEW,Uri.parse(url)));
+        } catch(Exception e) { status.setText("Could not start sign-in: "+e.getMessage()); }
+    }
+    private boolean handleAuthRedirect(Intent intent) {
+        if(intent==null||intent.getData()==null)return false;
+        Uri uri=intent.getData();
+        if(!"infinitychat".equals(uri.getScheme())||!"auth".equals(uri.getHost()))return false;
+        String raw=uri.getFragment();
+        if(raw==null||raw.isEmpty())raw=uri.getEncodedQuery();
+        if(raw==null)raw="";
+        java.util.Map<String,String> params=new java.util.HashMap<>();
+        try {
+            for(String pair:raw.split("&")) {
+                int at=pair.indexOf('=');
+                if(at>0)params.put(java.net.URLDecoder.decode(pair.substring(0,at),"UTF-8"),java.net.URLDecoder.decode(pair.substring(at+1),"UTF-8"));
+            }
+            String error=params.get("error_description");
+            if(error==null)error=params.get("error");
+            String access=params.get("access_token"), refresh=params.get("refresh_token");
+            if(error!=null&&!error.isEmpty()){message("Sign-in failed: "+error);return true;}
+            if(access==null||access.isEmpty()||refresh==null||refresh.isEmpty()){message("Sign-in did not return a valid session.");return true;}
+            String userId="",userEmail="";
+            String[] parts=access.split("\\.");
+            if(parts.length>1) {
+                JSONObject claims=new JSONObject(new String(Base64.decode(parts[1],Base64.URL_SAFE|Base64.NO_WRAP|Base64.NO_PADDING),java.nio.charset.StandardCharsets.UTF_8));
+                userId=claims.optString("sub","");
+                userEmail=claims.optString("email","");
+            }
+            if(userId.isEmpty()){message("Could not read the signed-in account. Please try again.");return true;}
+            ChatSession.save(this,access,refresh,userId,userEmail);
+            message("Signed in successfully.");
+            showHome();
+            return true;
+        } catch(Exception e) { message("Could not finish sign-in: "+e.getMessage()); return true; }
     }
     private EditText field(String hint,int type) {
         EditText e=new EditText(this); boolean multiline=(type&InputType.TYPE_TEXT_FLAG_MULTI_LINE)!=0; e.setSingleLine(!multiline); if(multiline){e.setMaxLines(4);e.setGravity(Gravity.CENTER_VERTICAL|Gravity.START);} e.setHint(tr(hint)); e.setInputType(type);
@@ -613,7 +688,7 @@ public class MainActivity extends AppCompatActivity {
             SupabaseClient.patch("/rest/v1/profiles?id=eq."+SupabaseClient.enc(userId),access,p);
         }catch(Exception ignored){}});
     }
-    @Override protected void onStart(){super.onStart();activityStarted=true;setPresence(true);handler.removeCallbacks(presenceHeartbeat);handler.postDelayed(presenceHeartbeat,60000L);if(inChat&&!currentConversationId.isEmpty()){startRealtime(currentConversationId);handler.removeCallbacks(refreshRunnable);handler.postDelayed(refreshRunnable,5000);}}
+    @Override protected void onNewIntent(Intent intent){super.onNewIntent(intent);setIntent(intent);if(handleAuthRedirect(intent))return;}\n    @Override protected void onStart(){super.onStart();activityStarted=true;setPresence(true);handler.removeCallbacks(presenceHeartbeat);handler.postDelayed(presenceHeartbeat,60000L);if(inChat&&!currentConversationId.isEmpty()){startRealtime(currentConversationId);handler.removeCallbacks(refreshRunnable);handler.postDelayed(refreshRunnable,5000);}}
     @Override protected void onStop(){activityStarted=false;handler.removeCallbacks(presenceHeartbeat);if(inChat&&!currentConversationId.isEmpty())setTypingStatus(currentConversationId,false);stopRealtime();setPresence(false);super.onStop();}
     @Override protected void onDestroy(){stopRealtime();handler.removeCallbacks(refreshRunnable);io.shutdown();super.onDestroy();}
 }
