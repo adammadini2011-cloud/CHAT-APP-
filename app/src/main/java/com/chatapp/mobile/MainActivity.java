@@ -172,6 +172,7 @@ public class MainActivity extends AppCompatActivity {
     private String uid(){return ChatSession.userId(this);}
     private void showHome() {
         scheduleNotifications();
+        setPresence(true);
         inChat=false; handler.removeCallbacks(refreshRunnable);
         base("Your chats","＋",v->showSearch());
         LinearLayout actions=new LinearLayout(this); actions.setOrientation(LinearLayout.HORIZONTAL);
@@ -471,7 +472,7 @@ public class MainActivity extends AppCompatActivity {
                 runOnUiThread(()->message("Profile saved."));
             }catch(Exception e){runOnUiThread(()->message("Could not save profile: "+e.getMessage()));}});
         });
-        logout.setOnClickListener(v->{WorkManager.getInstance(this).cancelUniqueWork("chat-message-check");ChatSession.clear(this);getSharedPreferences("chat_notifications",MODE_PRIVATE).edit().clear().apply();showAuth();});
+        logout.setOnClickListener(v->{setPresence(false);WorkManager.getInstance(this).cancelUniqueWork("chat-message-check");ChatSession.clear(this);getSharedPreferences("chat_notifications",MODE_PRIVATE).edit().clear().apply();showAuth();});
     }
     private void showMessageActions(JSONObject msg) {
         String id=msg.optString("id"), original=msg.optString("body","");
@@ -505,8 +506,10 @@ public class MainActivity extends AppCompatActivity {
         }catch(Exception e){runOnUiThread(()->message(e.getMessage()));}});
     }
     private void setPresence(boolean online) {
-        if(ChatSession.userId(this).isEmpty())return;
-        io.execute(()->{try{JSONObject p=new JSONObject();p.put("is_online",online);p.put("last_seen_at",nowIso());SupabaseClient.patch("/rest/v1/profiles?id=eq."+SupabaseClient.enc(uid()),token(),p);}catch(Exception ignored){}});
+        final String userId=ChatSession.userId(this);
+        final String access=token();
+        if(userId.isEmpty()||access.isEmpty())return;
+        io.execute(()->{try{JSONObject p=new JSONObject();p.put("is_online",online);p.put("last_seen_at",nowIso());SupabaseClient.patch("/rest/v1/profiles?id=eq."+SupabaseClient.enc(userId),access,p);}catch(Exception ignored){}});
     }
     @Override protected void onStart(){super.onStart();setPresence(true);}
     @Override protected void onStop(){setPresence(false);super.onStop();}
