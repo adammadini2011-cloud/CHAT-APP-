@@ -11,6 +11,7 @@ import android.os.Looper;
 import android.text.InputType;
 import android.view.Gravity;
 import android.view.View;
+import android.util.Base64;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
@@ -22,6 +23,10 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Date;
+import java.util.Locale;
+import java.util.TimeZone;
+import java.text.SimpleDateFormat;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -109,7 +114,30 @@ public class MainActivity extends AppCompatActivity {
             }catch(Exception e){runOnUiThread(()->status.setText(e.getMessage()));}
         });
     }
-    private String token(){return ChatSession.token(this);}
+    private String nowIso() {
+        SimpleDateFormat f = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US);
+        f.setTimeZone(TimeZone.getTimeZone("UTC")); return f.format(new Date());
+    }
+    private String token(){
+        String current = ChatSession.token(this);
+        String refresh = ChatSession.refresh(this);
+        if (current.isEmpty() || refresh.isEmpty()) return current;
+        try {
+            String[] parts = current.split("\\.");
+            if (parts.length > 1) {
+                byte[] decoded = Base64.decode(parts[1], Base64.URL_SAFE | Base64.NO_WRAP | Base64.NO_PADDING);
+                long exp = new JSONObject(new String(decoded, java.nio.charset.StandardCharsets.UTF_8)).optLong("exp", 0L);
+                if (exp > 0 && exp < (System.currentTimeMillis()/1000L) + 120L) {
+                    JSONObject renewed = SupabaseAuth.refresh(refresh);
+                    String access = renewed.optString("access_token", "");
+                    String nextRefresh = renewed.optString("refresh_token", refresh);
+                    if (!access.isEmpty()) ChatSession.save(this, access, nextRefresh, renewed.optJSONObject("user") == null ? uid() : renewed.optJSONObject("user").optString("id", uid()), ChatSession.email(this));
+                    if (!access.isEmpty()) current = access;
+                }
+            }
+        } catch (Exception ignored) {}
+        return current;
+    }
     private String uid(){return ChatSession.userId(this);}
     private void showHome() {
         inChat=false; handler.removeCallbacks(refreshRunnable);
@@ -178,7 +206,7 @@ public class MainActivity extends AppCompatActivity {
                         String username=u.optString("username","");
                         Button b=button(name+(username.isEmpty()?"":"  @"+username)+(u.optBoolean("is_online")?"  • online":""));
                         b.setGravity(Gravity.CENTER_VERTICAL|Gravity.START); LinearLayout.LayoutParams p=match(dp(58));p.bottomMargin=dp(6);results.addView(b,p);
-                        b.setOnClickListener(v->startDirect(id,name));
+                        b.setOnClickListener(v->startDirect(id,name));\n                        b.setOnLongClickListener(v->{showUserActions(id,name);return true;});
                     }
                 });
             }catch(Exception e){runOnUiThread(()->{results.removeAllViews();results.addView(text(e.getMessage(),13,0xFFF2A7A7,false));});}
@@ -218,7 +246,7 @@ public class MainActivity extends AppCompatActivity {
         // Fetch in the background; refresh the current chat without blocking typing.
         io.execute(()->{
             try{
-                String path="/rest/v1/messages?select=id,sender_id,body,created_at,attachment_path,attachment_type,deleted_at&conversation_id=eq."+SupabaseClient.enc(currentConversationId)+"&deleted_at=is.null&order=created_at.asc&limit=200";
+                String path="/rest/v1/messages?select=id,sender_id,body,created_at,attachment_path,attachment_type,deleted_at,edited_at,message_receipts(user_id,delivered_at,read_at)&conversation_id=eq."+SupabaseClient.enc(currentConversationId)+"&deleted_at=is.null&order=created_at.asc&limit=200";
                 JSONArray rows=SupabaseClient.getArray(path,token());
                 runOnUiThread(()->renderMessages(rows));
             }catch(Exception e){if(showLoading)runOnUiThread(()->message("Messages: "+e.getMessage()));}
@@ -243,6 +271,19 @@ public class MainActivity extends AppCompatActivity {
             bubble.setBackgroundTintList(null);
             bubble.setBackgroundColor(mine?0xFF176B63:0xFF263750);
             if(!attachment.isEmpty())bubble.setOnClickListener(v->openAttachment(attachment));
+            if(mine) {
+                JSONArray receipts=m.optJSONArray("message_receipts");
+                boolean delivered=false, read=false;
+                if(receipts!=null) for(int ri=0;ri<receipts.length();ri++){JSONObject rr=receipts.optJSONObject(ri);if(rr!=null){delivered|=!rr.isNull("delivered_at");read|=!rr.isNull("read_at");}}
+                TextView status=text(read?"✓✓ Seen":(delivered?"✓✓ Delivered":"✓ Sent"),10,read?0xFF35C7A5:0xFFAAB6C8,false);
+                LinearLayout bubbleWrap=new LinearLayout(this);bubbleWrap.setOrientation(LinearLayout.VERTICAL);bubbleWrap.addView(bubble);bubbleWrap.addView(status);
+                bubbleWrap.setOnLongClickListener(v->{showMessageActions(m);return true;});
+                if(!attachment.isEmpty()) bubbleWrap.setOnClickListener(v->openAttachment(attachment));
+                line.addView(bubbleWrap,new LinearLayout.LayoutParams(-2,-2));
+            } else {
+                bubble.setOnLongClickListener(v->{return false;});
+                line.addView(bubble,new LinearLayout.LayoutParams(-2,-2));
+            }
             LinearLayout line=new LinearLayout(this);line.setGravity(mine?Gravity.END:Gravity.START);
             line.addView(bubble,new LinearLayout.LayoutParams(-2,-2));
             LinearLayout.LayoutParams p=match(-2);p.topMargin=dp(5);msgs.addView(line,p);
@@ -306,10 +347,66 @@ public class MainActivity extends AppCompatActivity {
     }
     private void showProfile() {
         base("Profile","Back",v->showHome());
-        content.addView(text("Signed in as",14,0xFFAAB6C8,false));
-        content.addView(text(ChatSession.email(this),18,Color.WHITE,true));
-        Button logout=button("Sign out");LinearLayout.LayoutParams p=match(dp(52));p.topMargin=dp(22);content.addView(logout,p);
+        content.addView(text("Signed in as  "+ChatSession.email(this),13,0xFFAAB6C8,false));
+        EditText display=field("Display name",InputType.TYPE_CLASS_TEXT);
+        EditText username=field("Username",InputType.TYPE_CLASS_TEXT);
+        EditText bio=field("About you",InputType.TYPE_CLASS_TEXT|InputType.TYPE_TEXT_FLAG_CAP_SENTENCES);
+        content.addView(display,match(dp(54)));content.addView(username,match(dp(54)));content.addView(bio,match(dp(54)));
+        Button save=button("Save profile");LinearLayout.LayoutParams sp=match(dp(50));sp.topMargin=dp(12);content.addView(save,sp);
+        Button logout=button("Sign out");LinearLayout.LayoutParams p=match(dp(52));p.topMargin=dp(10);content.addView(logout,p);
+        io.execute(()->{
+            try{
+                JSONArray rows=SupabaseClient.getArray("/rest/v1/profiles?select=display_name,username,bio&id=eq."+SupabaseClient.enc(uid())+"&limit=1",token());
+                if(rows.length()>0){JSONObject me=rows.getJSONObject(0);runOnUiThread(()->{display.setText(me.optString("display_name",""));username.setText(me.optString("username",""));bio.setText(me.optString("bio",""));});}
+            }catch(Exception e){runOnUiThread(()->message("Profile: "+e.getMessage()));}
+        });
+        save.setOnClickListener(v->{
+            String handle=username.getText().toString().trim().replace("@","");
+            if(handle.length()<3){message("Username must contain at least 3 characters.");return;}
+            io.execute(()->{try{
+                JSONObject patch=new JSONObject();patch.put("display_name",display.getText().toString().trim());patch.put("username",handle);patch.put("bio",bio.getText().toString().trim());
+                SupabaseClient.patch("/rest/v1/profiles?id=eq."+SupabaseClient.enc(uid()),token(),patch);
+                runOnUiThread(()->message("Profile saved."));
+            }catch(Exception e){runOnUiThread(()->message("Could not save profile: "+e.getMessage()));}});
+        });
         logout.setOnClickListener(v->{ChatSession.clear(this);showAuth();});
     }
+    private void showMessageActions(JSONObject msg) {
+        String id=msg.optString("id"), original=msg.optString("body","");
+        new AlertDialog.Builder(this).setTitle("Your message")
+            .setItems(new String[]{"Edit message","Delete message"},(dialog,which)->{
+                if(which==0){
+                    EditText editor=field("Message",InputType.TYPE_CLASS_TEXT|InputType.TYPE_TEXT_FLAG_MULTI_LINE);editor.setText(original);
+                    new AlertDialog.Builder(this).setTitle("Edit message").setView(editor)
+                        .setPositiveButton("Save",(d,w)->io.execute(()->{try{JSONObject patch=new JSONObject();patch.put("body",editor.getText().toString().trim());patch.put("edited_at",nowIso());SupabaseClient.patch("/rest/v1/messages?id=eq."+SupabaseClient.enc(id),token(),patch);runOnUiThread(()->loadMessages(false));}catch(Exception e){runOnUiThread(()->message("Edit failed: "+e.getMessage()));}}))
+                        .setNegativeButton("Cancel",null).show();
+                }else{
+                    new AlertDialog.Builder(this).setTitle("Delete message?").setMessage("This message will be removed from the chat.")
+                        .setPositiveButton("Delete",(d,w)->io.execute(()->{try{JSONObject patch=new JSONObject();patch.put("deleted_at",nowIso());SupabaseClient.patch("/rest/v1/messages?id=eq."+SupabaseClient.enc(id),token(),patch);runOnUiThread(()->loadMessages(false));}catch(Exception e){runOnUiThread(()->message("Delete failed: "+e.getMessage()));}}))
+                        .setNegativeButton("Cancel",null).show();
+                }
+            }).show();
+    }
+    private void showUserActions(String userId,String name) {
+        io.execute(()->{try{
+            JSONArray rows=SupabaseClient.getArray("/rest/v1/user_blocks?select=blocked_id&blocker_id=eq."+SupabaseClient.enc(uid())+"&blocked_id=eq."+SupabaseClient.enc(userId),token());
+            boolean blocked=rows.length()>0;
+            runOnUiThread(()->new AlertDialog.Builder(this).setTitle(name)
+                .setItems(blocked?new String[]{"Open chat","Unblock user"}:new String[]{"Open chat","Block user"},(d,w)->{
+                    if(w==0)startDirect(userId,name);
+                    else io.execute(()->{try{
+                        if(blocked)SupabaseClient.delete("/rest/v1/user_blocks?blocker_id=eq."+SupabaseClient.enc(uid())+"&blocked_id=eq."+SupabaseClient.enc(userId),token());
+                        else {JSONObject row=new JSONObject();row.put("blocker_id",uid());row.put("blocked_id",userId);SupabaseClient.post("/rest/v1/user_blocks",token(),row);}
+                        runOnUiThread(()->message(blocked?"User unblocked.":"User blocked."));
+                    }catch(Exception e){runOnUiThread(()->message("Block action failed: "+e.getMessage()));}});
+                }).show());
+        }catch(Exception e){runOnUiThread(()->message(e.getMessage()));}});
+    }
+    private void setPresence(boolean online) {
+        if(ChatSession.userId(this).isEmpty())return;
+        io.execute(()->{try{JSONObject p=new JSONObject();p.put("is_online",online);p.put("last_seen_at",nowIso());SupabaseClient.patch("/rest/v1/profiles?id=eq."+SupabaseClient.enc(uid()),token(),p);}catch(Exception ignored){}});
+    }
+    @Override protected void onStart(){super.onStart();setPresence(true);}
+    @Override protected void onStop(){setPresence(false);super.onStop();}
     @Override protected void onDestroy(){handler.removeCallbacks(refreshRunnable);io.shutdown();super.onDestroy();}
 }
