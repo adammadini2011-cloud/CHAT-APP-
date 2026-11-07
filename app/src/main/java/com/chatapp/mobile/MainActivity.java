@@ -248,6 +248,18 @@ public class MainActivity extends AppCompatActivity {
             try{
                 String path="/rest/v1/messages?select=id,sender_id,body,created_at,attachment_path,attachment_type,deleted_at,edited_at,message_receipts(user_id,delivered_at,read_at)&conversation_id=eq."+SupabaseClient.enc(currentConversationId)+"&deleted_at=is.null&order=created_at.asc&limit=200";
                 JSONArray rows=SupabaseClient.getArray(path,token());
+                String stamp=nowIso();
+                for(int i=0;i<rows.length();i++){
+                    JSONObject incoming=rows.optJSONObject(i);
+                    if(incoming!=null && !uid().equals(incoming.optString("sender_id"))){
+                        JSONObject receipt=new JSONObject();
+                        receipt.put("message_id",incoming.optString("id"));
+                        receipt.put("user_id",uid());
+                        receipt.put("delivered_at",stamp);
+                        receipt.put("read_at",stamp);
+                        SupabaseClient.upsert("/rest/v1/message_receipts?on_conflict=message_id,user_id",token(),receipt);
+                    }
+                }
                 runOnUiThread(()->renderMessages(rows));
             }catch(Exception e){if(showLoading)runOnUiThread(()->message("Messages: "+e.getMessage()));}
         });
@@ -271,6 +283,7 @@ public class MainActivity extends AppCompatActivity {
             bubble.setBackgroundTintList(null);
             bubble.setBackgroundColor(mine?0xFF176B63:0xFF263750);
             if(!attachment.isEmpty())bubble.setOnClickListener(v->openAttachment(attachment));
+            LinearLayout line=new LinearLayout(this);line.setGravity(mine?Gravity.END:Gravity.START);
             if(mine) {
                 JSONArray receipts=m.optJSONArray("message_receipts");
                 boolean delivered=false, read=false;
@@ -284,8 +297,6 @@ public class MainActivity extends AppCompatActivity {
                 bubble.setOnLongClickListener(v->{return false;});
                 line.addView(bubble,new LinearLayout.LayoutParams(-2,-2));
             }
-            LinearLayout line=new LinearLayout(this);line.setGravity(mine?Gravity.END:Gravity.START);
-            line.addView(bubble,new LinearLayout.LayoutParams(-2,-2));
             LinearLayout.LayoutParams p=match(-2);p.topMargin=dp(5);msgs.addView(line,p);
         }
         final ScrollView scrollTarget=sc;
