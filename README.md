@@ -15,12 +15,12 @@ Native Android messaging app project built with Java, XML layouts, Android SDK, 
 - Group owner controls: rename groups, add/remove members, and leave groups; owners must remove other members before leaving to avoid orphaned groups.
 - Typing indicators backed by an RLS-protected table.
 - Foreground online/last-seen updates with a 60-second heartbeat while the app remains active.
-- Five-second foreground REST polling for chat updates.
+- Native Supabase Realtime WebSocket subscription for the open conversation, with five-second REST polling as a fallback.
 - WorkManager background checks for local message notifications (minimum 15-minute interval; not instant push).
 - English/Arabic language toggle, RTL layout direction, custom launcher icon, and rounded native controls.
 
 ## Not yet complete or verified
-- Native Supabase Realtime/WebSocket updates; foreground chat currently uses REST polling.
+- Live WebSocket behavior and reconnection still need verification with two real accounts on an Android device; REST polling remains the fallback.
 - True instant push notifications; the background worker can be delayed by Android battery/network restrictions.
 - Full Arabic translation coverage and full RTL/accessibility polish.
 - Full device-level testing of account creation, multiple-user chats, groups, receipts, blocking, and all attachment types.
