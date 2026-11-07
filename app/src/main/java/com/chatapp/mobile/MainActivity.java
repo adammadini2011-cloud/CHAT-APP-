@@ -153,7 +153,7 @@ public class MainActivity extends AppCompatActivity {
         signUp.setOnClickListener(v->auth(email.getText().toString().trim(),pass.getText().toString(),true,status));
     }
     private EditText field(String hint,int type) {
-        EditText e=new EditText(this); e.setSingleLine(true); e.setHint(tr(hint)); e.setInputType(type);
+        EditText e=new EditText(this); boolean multiline=(type&InputType.TYPE_TEXT_FLAG_MULTI_LINE)!=0; e.setSingleLine(!multiline); if(multiline){e.setMaxLines(4);e.setGravity(Gravity.CENTER_VERTICAL|Gravity.START);} e.setHint(tr(hint)); e.setInputType(type);
         e.setTextColor(Color.WHITE); e.setHintTextColor(0xFFAAB6C8); e.setPadding(dp(14),0,dp(14),0);
         e.setBackgroundTintList(android.content.res.ColorStateList.valueOf(0xFF35C7A5)); return e;
     }
