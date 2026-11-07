@@ -110,10 +110,12 @@ public class MainActivity extends AppCompatActivity {
     }
     private void base(String title, String action, View.OnClickListener listener) {
         root = (LinearLayout) LayoutInflater.from(this).inflate(R.layout.activity_main, null);
-        root.setLayoutDirection(isArabic()?View.LAYOUT_DIRECTION_RTL:View.LAYOUT_DIRECTION_LTR);
+        int direction=isArabic()?View.LAYOUT_DIRECTION_RTL:View.LAYOUT_DIRECTION_LTR;
+        root.setLayoutDirection(direction);
         setContentView(root);
         toolbar = root.findViewById(R.id.toolbar);
         content = root.findViewById(R.id.content);
+        toolbar.setLayoutDirection(direction);content.setLayoutDirection(direction);
         toolbar.removeAllViews();content.removeAllViews();
         TextView heading=text(title,20,Color.WHITE,true);
         toolbar.addView(heading,new LinearLayout.LayoutParams(0,-2,1));
