@@ -87,6 +87,7 @@ public class MainActivity extends AppCompatActivity {
             case "Delete message":return "حذف الرسالة";
             case "Cancel":return "إلغاء";
             case "Language: English":return "اللغة: العربية";
+            case "Someone is typing…":return "يكتب الآن…";
             default:return s;
         }
     }
@@ -283,7 +284,7 @@ public class MainActivity extends AppCompatActivity {
     }
     private void openChat(ChatItem item) {
         currentConversationId=item.id; currentConversationTitle=item.title; inChat=true;
-        base(item.title,item.group?"Manage":"Back",v->{if(item.group)showGroupManagement();else{setTypingStatus(currentConversationId,false);inChat=false;handler.removeCallbacks(refreshRunnable);showHome();}});
+        base(item.title,item.group?"Manage":"Back",v->{if(item.group){setTypingStatus(currentConversationId,false);showGroupManagement();}else{setTypingStatus(currentConversationId,false);inChat=false;handler.removeCallbacks(refreshRunnable);showHome();}});
         ScrollView sc=new ScrollView(this); sc.setFillViewport(false); content.addView(sc,new LinearLayout.LayoutParams(-1,0,1));
         typingIndicator=text("",12,0xFF35C7A5,false);content.addView(typingIndicator,match(dp(24)));
         LinearLayout messages=new LinearLayout(this); messages.setOrientation(LinearLayout.VERTICAL); sc.addView(messages);
@@ -533,6 +534,6 @@ public class MainActivity extends AppCompatActivity {
         io.execute(()->{try{JSONObject p=new JSONObject();p.put("is_online",online);p.put("last_seen_at",nowIso());SupabaseClient.patch("/rest/v1/profiles?id=eq."+SupabaseClient.enc(userId),access,p);}catch(Exception ignored){}});
     }
     @Override protected void onStart(){super.onStart();setPresence(true);}
-    @Override protected void onStop(){setPresence(false);super.onStop();}
+    @Override protected void onStop(){if(inChat&&!currentConversationId.isEmpty())setTypingStatus(currentConversationId,false);setPresence(false);super.onStop();}
     @Override protected void onDestroy(){handler.removeCallbacks(refreshRunnable);io.shutdown();super.onDestroy();}
 }
