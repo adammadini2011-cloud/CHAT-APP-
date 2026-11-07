@@ -117,7 +117,11 @@ public class MainActivity extends AppCompatActivity {
     private void scheduleNotifications() {
         if(ChatSession.token(this).isEmpty())return;
         if(Build.VERSION.SDK_INT>=33 && ContextCompat.checkSelfPermission(this,Manifest.permission.POST_NOTIFICATIONS)!=PackageManager.PERMISSION_GRANTED){
-            ActivityCompat.requestPermissions(this,new String[]{Manifest.permission.POST_NOTIFICATIONS},8201);
+            android.content.SharedPreferences settings=getSharedPreferences("app_settings",MODE_PRIVATE);
+            if(!settings.getBoolean("notification_permission_requested",false)){
+                settings.edit().putBoolean("notification_permission_requested",true).apply();
+                ActivityCompat.requestPermissions(this,new String[]{Manifest.permission.POST_NOTIFICATIONS},8201);
+            }
         }
         PeriodicWorkRequest request=new PeriodicWorkRequest.Builder(ChatNotificationWorker.class,15,TimeUnit.MINUTES).build();
         WorkManager.getInstance(this).enqueueUniquePeriodicWork("chat-message-check",ExistingPeriodicWorkPolicy.KEEP,request);
