@@ -425,7 +425,7 @@ public class MainActivity extends AppCompatActivity {
         super.onActivityResult(requestCode,resultCode,data);
         if(requestCode==410&&resultCode==RESULT_OK&&data!=null&&data.getData()!=null){
             Uri selected=data.getData();String cid=currentConversationId;message("Uploading attachment…");
-            io.execute(()->{try{String uploaded=SupabaseStorage.upload(this,selected,cid,token());String[] parts=uploaded.split("\\|",2);JSONObject msg=new JSONObject();msg.put("conversation_id",cid);msg.put("sender_id",uid());msg.put("attachment_path",parts[0]);msg.put("attachment_type",parts.length>1?parts[1]:"application/octet-stream");SupabaseClient.post("/rest/v1/messages",token(),msg);runOnUiThread(()->{message("Attachment sent.");loadMessages(false);});}catch(Exception e){runOnUiThread(()->message("Upload failed: "+e.getMessage()));}});
+            io.execute(()->{try{String uploaded=SupabaseStorage.upload(this,selected,cid,token());String[] parts=uploaded.split("\\|",2);JSONObject msg=new JSONObject();msg.put("conversation_id",cid);msg.put("sender_id",uid());msg.put("attachment_path",parts[0]);msg.put("attachment_type",parts.length>1?parts[1]:"file");SupabaseClient.post("/rest/v1/messages",token(),msg);runOnUiThread(()->{message("Attachment sent.");loadMessages(false);});}catch(Exception e){runOnUiThread(()->message("Upload failed: "+e.getMessage()));}});
         }
     }
     private void sendMessage(String body) {
