@@ -1,11 +1,11 @@
 <resources>
     <style name="Theme.ChatApp" parent="Theme.MaterialComponents.DayNight.NoActionBar">
-        <item name="colorPrimary">#18233A</item>
-        <item name="colorPrimaryVariant">#101827</item>
-        <item name="colorSecondary">#35C7A5</item>
+        <item name="colorPrimary">#17245B</item>
+        <item name="colorPrimaryVariant">#080D2B</item>
+        <item name="colorSecondary">#8B45F5</item>
         <item name="android:fontFamily">sans</item>
-        <item name="android:statusBarColor">#101827</item>
-        <item name="android:navigationBarColor">#101827</item>
+        <item name="android:statusBarColor">#050823</item>
+        <item name="android:navigationBarColor">#050823</item>
         <item name="android:windowLightStatusBar">false</item>
     </style>
 </resources>
