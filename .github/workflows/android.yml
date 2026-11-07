@@ -34,6 +34,18 @@ jobs:
       - name: Verify APK package metadata
         run: |
           "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging app/build/outputs/apk/debug/app-debug.apk | grep -F "package: name='com.chatapp.mobile' versionCode='2' versionName='1.1.0'"
+      - name: Package complete Android source ZIP
+        if: always()
+        run: |
+          zip -r infinity-chat-android-source.zip . \
+            -x ".git/*" "*/build/*" ".gradle/*" "*/.gradle/*" "infinity-chat-android-source.zip"
+      - name: Upload complete Android source ZIP
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: infinity-chat-android-source
+          path: infinity-chat-android-source.zip
+          if-no-files-found: error
       - name: Install and launch APK in Android emulator
         uses: reactivecircus/android-emulator-runner@v2
         with:
@@ -48,18 +60,6 @@ jobs:
             adb shell am start -W -n com.chatapp.mobile/.MainActivity
             sleep 5
             adb shell pidof com.chatapp.mobile
-      - name: Package complete Android source ZIP
-        if: always()
-        run: |
-          zip -r infinity-chat-android-source.zip . \
-            -x ".git/*" "*/build/*" ".gradle/*" "*/.gradle/*" "infinity-chat-android-source.zip"
-      - name: Upload complete Android source ZIP
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: infinity-chat-android-source
-          path: infinity-chat-android-source.zip
-          if-no-files-found: error
       - name: Upload APK artifact
         if: always()
         uses: actions/upload-artifact@v4
