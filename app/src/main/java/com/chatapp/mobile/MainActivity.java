@@ -319,12 +319,20 @@ public class MainActivity extends AppCompatActivity {
                 for(int i=0;i<rows.length();i++){
                     JSONObject incoming=rows.optJSONObject(i);
                     if(incoming!=null && !uid().equals(incoming.optString("sender_id"))){
-                        JSONObject receipt=new JSONObject();
-                        receipt.put("message_id",incoming.optString("id"));
-                        receipt.put("user_id",uid());
-                        receipt.put("delivered_at",stamp);
-                        receipt.put("read_at",stamp);
-                        SupabaseClient.upsert("/rest/v1/message_receipts?on_conflict=message_id,user_id",token(),receipt);
+                        boolean alreadyRead=false;
+                        JSONArray receipts=incoming.optJSONArray("message_receipts");
+                        if(receipts!=null)for(int r=0;r<receipts.length();r++){
+                            JSONObject receiptRow=receipts.optJSONObject(r);
+                            if(receiptRow!=null && uid().equals(receiptRow.optString("user_id")) && !receiptRow.isNull("read_at")){alreadyRead=true;break;}
+                        }
+                        if(!alreadyRead){
+                            JSONObject receipt=new JSONObject();
+                            receipt.put("message_id",incoming.optString("id"));
+                            receipt.put("user_id",uid());
+                            receipt.put("delivered_at",stamp);
+                            receipt.put("read_at",stamp);
+                            SupabaseClient.upsert("/rest/v1/message_receipts?on_conflict=message_id,user_id",token(),receipt);
+                        }
                     }
                 }
                 String cutoff=SupabaseClient.enc(isoAt(System.currentTimeMillis()-12000L));
