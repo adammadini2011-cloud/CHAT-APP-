@@ -3,6 +3,8 @@ package com.chatapp.mobile;
 import android.app.AlertDialog;
 import android.graphics.Color;
 import android.graphics.Typeface;
+import android.content.Intent;
+import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -204,8 +206,9 @@ public class MainActivity extends AppCompatActivity {
         LinearLayout messages=new LinearLayout(this); messages.setOrientation(LinearLayout.VERTICAL); sc.addView(messages);
         LinearLayout composer=new LinearLayout(this); composer.setGravity(Gravity.CENTER_VERTICAL); composer.setPadding(0,dp(8),0,0);
         EditText input=field("Write a message…",InputType.TYPE_CLASS_TEXT|InputType.TYPE_TEXT_FLAG_MULTI_LINE);
-        Button send=button("Send");
-        composer.addView(input,new LinearLayout.LayoutParams(0,dp(52),1)); composer.addView(send,new LinearLayout.LayoutParams(dp(82),dp(52)));
+        Button attach=button("＋"); Button send=button("Send");
+        composer.addView(attach,new LinearLayout.LayoutParams(dp(48),dp(52))); composer.addView(input,new LinearLayout.LayoutParams(0,dp(52),1)); composer.addView(send,new LinearLayout.LayoutParams(dp(82),dp(52)));
+        attach.setOnClickListener(v->{Intent pick=new Intent(Intent.ACTION_OPEN_DOCUMENT);pick.addCategory(Intent.CATEGORY_OPENABLE);pick.setType("*/*");startActivityForResult(pick,410);});
         content.addView(composer);
         send.setOnClickListener(v->{String body=input.getText().toString().trim();if(!body.isEmpty()){input.setText("");sendMessage(body);}});
         loadMessages(true); handler.removeCallbacks(refreshRunnable); handler.postDelayed(refreshRunnable,5000);
@@ -232,18 +235,30 @@ public class MainActivity extends AppCompatActivity {
         for(int i=0;i<rows.length();i++){
             JSONObject m=rows.optJSONObject(i);if(m==null)continue;
             boolean mine=uid().equals(m.optString("sender_id"));
+            String attachment=m.optString("attachment_path","");
             String body=m.optString("body","");
-            if(body.isEmpty()&&!m.optString("attachment_path","").isEmpty())body="Attachment: "+m.optString("attachment_type","file");
+            if(!attachment.isEmpty())body="📎 Open attachment ("+m.optString("attachment_type","file")+")";
             TextView bubble=text(body,15,mine?Color.WHITE:0xFFE6EDF7,false);
             bubble.setPadding(dp(14),dp(10),dp(14),dp(10));
             bubble.setBackgroundTintList(null);
             bubble.setBackgroundColor(mine?0xFF176B63:0xFF263750);
+            if(!attachment.isEmpty())bubble.setOnClickListener(v->openAttachment(attachment));
             LinearLayout line=new LinearLayout(this);line.setGravity(mine?Gravity.END:Gravity.START);
             line.addView(bubble,new LinearLayout.LayoutParams(-2,-2));
             LinearLayout.LayoutParams p=match(-2);p.topMargin=dp(5);msgs.addView(line,p);
         }
         final ScrollView scrollTarget=sc;
         if(scrollTarget!=null)scrollTarget.post(()->scrollTarget.fullScroll(View.FOCUS_DOWN));
+    }
+    private void openAttachment(String path) {
+        io.execute(()->{try{String url=SupabaseStorage.signedUrl(path,token());Intent view=new Intent(Intent.ACTION_VIEW,Uri.parse(url));runOnUiThread(()->{try{startActivity(view);}catch(Exception e){message("No app can open this file.");}});}catch(Exception e){runOnUiThread(()->message(e.getMessage()));}});
+    }
+    @Override protected void onActivityResult(int requestCode,int resultCode,Intent data) {
+        super.onActivityResult(requestCode,resultCode,data);
+        if(requestCode==410&&resultCode==RESULT_OK&&data!=null&&data.getData()!=null){
+            Uri selected=data.getData();String cid=currentConversationId;message("Uploading attachment…");
+            io.execute(()->{try{String uploaded=SupabaseStorage.upload(this,selected,cid,token());String[] parts=uploaded.split("\\|",2);JSONObject msg=new JSONObject();msg.put("conversation_id",cid);msg.put("sender_id",uid());msg.put("attachment_path",parts[0]);msg.put("attachment_type",parts.length>1?parts[1]:"application/octet-stream");SupabaseClient.post("/rest/v1/messages",token(),msg);runOnUiThread(()->{message("Attachment sent.");loadMessages(false);});}catch(Exception e){runOnUiThread(()->message("Upload failed: "+e.getMessage()));}});
+        }
     }
     private void sendMessage(String body) {
         final String cid=currentConversationId;
