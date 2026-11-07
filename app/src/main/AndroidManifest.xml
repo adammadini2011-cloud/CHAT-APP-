@@ -4,6 +4,7 @@
     <application
         android:allowBackup="false"
         android:label="Chat App"
+        android:icon="@drawable/ic_chat_app"
         android:theme="@style/Theme.ChatApp"
         android:usesCleartextTraffic="false">
         <activity android:name=".MainActivity" android:exported="true">
