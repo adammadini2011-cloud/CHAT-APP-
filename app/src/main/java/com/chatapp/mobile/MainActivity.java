@@ -271,7 +271,7 @@ public class MainActivity extends AppCompatActivity {
         io.execute(()->{
             try{
                 String term="*"+q.replace("*","")+"*";
-                String path="/rest/v1/profiles?select=id,username,display_name,bio,is_online& id=neq."+SupabaseClient.enc(uid())+
+                String path="/rest/v1/profiles?select=id,username,display_name,bio,is_online,last_seen_at& id=neq."+SupabaseClient.enc(uid())+
                     "&or=(username.ilike."+SupabaseClient.enc(term)+",display_name.ilike."+SupabaseClient.enc(term)+")&limit=30";
                 path=path.replace("&%20id","&id").replace("& id","&id");
                 JSONArray users=SupabaseClient.getArray(path,token());
@@ -282,7 +282,10 @@ public class MainActivity extends AppCompatActivity {
                         JSONObject u=users.optJSONObject(i); if(u==null)continue;
                         String id=u.optString("id"), name=u.optString("display_name",u.optString("username","User"));
                         String username=u.optString("username","");
-                        Button b=button(name+(username.isEmpty()?"":"  @"+username)+(u.optBoolean("is_online")?"  • online":""));
+                        String seen=u.optString("last_seen_at","");
+                        String presence=u.optBoolean("is_online")?(isArabic()?"  • متصل الآن":"  • online")
+                            :(!seen.isEmpty()&&seen.length()>=16?(isArabic()?"  • آخر ظهور ":"  • last seen ")+seen.substring(0,16).replace('T',' '):"");
+                        Button b=button(name+(username.isEmpty()?"":"  @"+username)+presence);
                         b.setGravity(Gravity.CENTER_VERTICAL|Gravity.START); LinearLayout.LayoutParams p=match(dp(58));p.bottomMargin=dp(6);results.addView(b,p);
                         b.setOnClickListener(v->startDirect(id,name));
                         b.setOnLongClickListener(v->{showUserActions(id,name);return true;});
