@@ -50,6 +50,9 @@ public class MainActivity extends AppCompatActivity {
     private String currentConversationTitle = "";
     private TextView typingIndicator;
     private Runnable typingUpdateRunnable;
+    private SupabaseRealtime realtime;
+    private int realtimeGeneration = 0;
+    private boolean activityStarted = false;
     private final Runnable presenceHeartbeat = new Runnable(){@Override public void run(){if(!isFinishing()){setPresence(true);handler.postDelayed(this,60000L);}}};
     private boolean inChat = false;
     private final Runnable refreshRunnable = new Runnable() {
@@ -182,9 +185,32 @@ public class MainActivity extends AppCompatActivity {
     private void setTypingStatus(String conversationId,boolean typing){
         io.execute(()->{try{JSONObject row=new JSONObject();row.put("conversation_id",conversationId);row.put("user_id",uid());row.put("is_typing",typing);row.put("updated_at",nowIso());SupabaseClient.upsert("/rest/v1/typing_status?on_conflict=conversation_id,user_id",token(),row);}catch(Exception ignored){}});
     }
-    private String token(){return ChatSession.validToken(this);}
+    private String token(){String value=ChatSession.validToken(this);if(realtime!=null)realtime.updateAccessToken(value);return value;}
+    private void stopRealtime(){
+        realtimeGeneration++;
+        if(realtime!=null){realtime.stop();realtime=null;}
+    }
+    private void startRealtime(String cid){
+        stopRealtime();
+        final int generation=realtimeGeneration;
+        io.execute(()->{
+            String access=ChatSession.validToken(getApplicationContext());
+            runOnUiThread(()->{
+                if(generation!=realtimeGeneration||!activityStarted||!inChat||!cid.equals(currentConversationId)||access.isEmpty())return;
+                SupabaseRealtime channel=new SupabaseRealtime();
+                realtime=channel;
+                channel.start(getApplicationContext(),cid,access,new SupabaseRealtime.Listener(){
+                    @Override public void onMessageChange(){
+                        if(activityStarted&&inChat&&cid.equals(currentConversationId))handler.postDelayed(()->{if(inChat&&cid.equals(currentConversationId))loadMessages(false);},180L);
+                    }
+                    @Override public void onState(boolean connected,String detail){}
+                });
+            });
+        });
+    }
     private String uid(){return ChatSession.userId(this);}
     private void showHome() {
+        stopRealtime();
         scheduleNotifications();
         setPresence(true);
         inChat=false; handler.removeCallbacks(refreshRunnable);
@@ -225,6 +251,7 @@ public class MainActivity extends AppCompatActivity {
         });
     }
     private void showSearch() {
+        stopRealtime();
         inChat=false; handler.removeCallbacks(refreshRunnable);
         base("Find people","Back",v->showHome());
         EditText query=field("Search by username or name",InputType.TYPE_CLASS_TEXT);
@@ -310,14 +337,16 @@ public class MainActivity extends AppCompatActivity {
         attach.setOnClickListener(v->{Intent pick=new Intent(Intent.ACTION_OPEN_DOCUMENT);pick.addCategory(Intent.CATEGORY_OPENABLE);pick.setType("*/*");startActivityForResult(pick,410);});
         content.addView(composer);
         send.setOnClickListener(v->{String body=input.getText().toString().trim();if(!body.isEmpty()){input.setText("");sendMessage(body);}});
+        startRealtime(item.id);
         loadMessages(true); handler.removeCallbacks(refreshRunnable); handler.postDelayed(refreshRunnable,5000);
     }
     private void loadMessages(boolean showLoading) {
-        if(currentConversationId.isEmpty())return;
+        final String cid=currentConversationId;
+        if(cid.isEmpty())return;
         // Fetch in the background; refresh the current chat without blocking typing.
         io.execute(()->{
             try{
-                String path="/rest/v1/messages?select=id,sender_id,body,created_at,attachment_path,attachment_type,deleted_at,edited_at,message_receipts(user_id,delivered_at,read_at)&conversation_id=eq."+SupabaseClient.enc(currentConversationId)+"&deleted_at=is.null&order=created_at.asc&limit=200";
+                String path="/rest/v1/messages?select=id,sender_id,body,created_at,attachment_path,attachment_type,deleted_at,edited_at,message_receipts(user_id,delivered_at,read_at)&conversation_id=eq."+SupabaseClient.enc(cid)+"&deleted_at=is.null&order=created_at.asc&limit=200";
                 JSONArray rows=SupabaseClient.getArray(path,token());
                 String stamp=nowIso();
                 for(int i=0;i<rows.length();i++){
@@ -340,8 +369,8 @@ public class MainActivity extends AppCompatActivity {
                     }
                 }
                 String cutoff=SupabaseClient.enc(isoAt(System.currentTimeMillis()-12000L));
-                JSONArray typing=SupabaseClient.getArray("/rest/v1/typing_status?select=user_id&conversation_id=eq."+SupabaseClient.enc(currentConversationId)+"&user_id=neq."+SupabaseClient.enc(uid())+"&is_typing=eq.true&updated_at=gt."+cutoff,token());
-                runOnUiThread(()->{if(typingIndicator!=null&&inChat)typingIndicator.setText(typing.length()>0?tr("Someone is typing…"):"");renderMessages(rows);});
+                JSONArray typing=SupabaseClient.getArray("/rest/v1/typing_status?select=user_id&conversation_id=eq."+SupabaseClient.enc(cid)+"&user_id=neq."+SupabaseClient.enc(uid())+"&is_typing=eq.true&updated_at=gt."+cutoff,token());
+                runOnUiThread(()->{if(typingIndicator!=null&&inChat&&cid.equals(currentConversationId)){typingIndicator.setText(typing.length()>0?tr("Someone is typing…"):"");renderMessages(rows);}});
             }catch(Exception e){if(showLoading)runOnUiThread(()->message("Messages: "+e.getMessage()));}
         });
     }
@@ -437,6 +466,8 @@ public class MainActivity extends AppCompatActivity {
         });
     }
     private void showGroupManagement() {
+        stopRealtime();
+        inChat=false;handler.removeCallbacks(refreshRunnable);
         final String cid=currentConversationId;
         base("Group settings","Back",v->openChat(new ChatItem(cid,currentConversationTitle,true)));
         EditText title=field("Group name",InputType.TYPE_CLASS_TEXT);
@@ -488,6 +519,8 @@ public class MainActivity extends AppCompatActivity {
         }catch(Exception e){runOnUiThread(()->message(e.getMessage()));}})).setNegativeButton("Cancel",null).show());
     }
     private void showProfile() {
+        stopRealtime();
+        inChat=false;handler.removeCallbacks(refreshRunnable);
         base("Profile","Back",v->showHome());
         content.addView(text("Signed in as  "+ChatSession.email(this),13,0xFFAAB6C8,false));
         EditText display=field("Display name",InputType.TYPE_CLASS_TEXT);
@@ -553,7 +586,7 @@ public class MainActivity extends AppCompatActivity {
         if(userId.isEmpty()||access.isEmpty())return;
         io.execute(()->{try{JSONObject p=new JSONObject();p.put("is_online",online);p.put("last_seen_at",nowIso());SupabaseClient.patch("/rest/v1/profiles?id=eq."+SupabaseClient.enc(userId),access,p);}catch(Exception ignored){}});
     }
-    @Override protected void onStart(){super.onStart();setPresence(true);handler.removeCallbacks(presenceHeartbeat);handler.postDelayed(presenceHeartbeat,60000L);}
-    @Override protected void onStop(){handler.removeCallbacks(presenceHeartbeat);if(inChat&&!currentConversationId.isEmpty())setTypingStatus(currentConversationId,false);setPresence(false);super.onStop();}
-    @Override protected void onDestroy(){handler.removeCallbacks(refreshRunnable);io.shutdown();super.onDestroy();}
+    @Override protected void onStart(){super.onStart();activityStarted=true;setPresence(true);handler.removeCallbacks(presenceHeartbeat);handler.postDelayed(presenceHeartbeat,60000L);if(inChat&&!currentConversationId.isEmpty())startRealtime(currentConversationId);}
+    @Override protected void onStop(){activityStarted=false;handler.removeCallbacks(presenceHeartbeat);if(inChat&&!currentConversationId.isEmpty())setTypingStatus(currentConversationId,false);stopRealtime();setPresence(false);super.onStop();}
+    @Override protected void onDestroy(){stopRealtime();handler.removeCallbacks(refreshRunnable);io.shutdown();super.onDestroy();}
 }
