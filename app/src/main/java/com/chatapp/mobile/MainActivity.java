@@ -68,6 +68,10 @@ public class MainActivity extends AppCompatActivity {
         if(!isArabic()||s==null)return s;
         switch(s){
             case "Sign in":return "تسجيل الدخول";
+            case "Continue with Google":return "المتابعة باستخدام Google";
+            case "Continue with Facebook":return "المتابعة باستخدام Facebook";
+            case "Show":return "إظهار";
+            case "Hide":return "إخفاء";
             case "Create account":return "إنشاء حساب";
             case "Email address":return "البريد الإلكتروني";
             case "Password":return "كلمة المرور";
@@ -105,7 +109,10 @@ public class MainActivity extends AppCompatActivity {
     }
     private Button button(String label) {
         Button b = new Button(this); b.setText(tr(label)); b.setAllCaps(false);
-        b.setTextColor(Color.WHITE); GradientDrawable shape=new GradientDrawable(); shape.setColor(0xFF263750); shape.setCornerRadius(dp(15)); b.setBackground(shape); b.setPadding(dp(16),0,dp(16),0); b.setStateListAnimator(null);
+        b.setTextColor(Color.WHITE); b.setTextSize(14); b.setTypeface(Typeface.DEFAULT,Typeface.BOLD);
+        GradientDrawable shape=new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT,new int[]{0xFF245BFF,0xFF713BEB});
+        shape.setCornerRadius(dp(16)); b.setBackground(shape); b.setPadding(dp(16),0,dp(16),0);
+        b.setStateListAnimator(null); b.setElevation(dp(2));
         return b;
     }
     private void base(String title, String action, View.OnClickListener listener) {
