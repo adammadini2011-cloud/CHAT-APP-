@@ -1,4 +1,6 @@
-# CHAT-APP-
+# Infinity Chat
+
+**Infinity Chat** is a native Android messaging app built with Java, XML layouts, Android SDK, AndroidX, and Supabase.
 
 Native Android messaging app project built with Java, XML layouts, Android SDK, AndroidX, and Supabase.
 
@@ -7,7 +9,7 @@ Native Android messaging app project built with Java, XML layouts, Android SDK, 
 - Local access/refresh token storage and access-token renewal.
 - Conversation list, user search, direct chats, and group creation.
 - Reuse existing direct chats and prevent direct messages when either user has blocked the other.
-- Text messages and file attachments, including private Storage uploads and signed download links.
+- Text messages and supported file attachments (JPEG, PNG, WEBP, GIF, MP4, PDF, TXT), including private Storage uploads and signed download links. Unsupported MIME types are rejected before upload.
 - Message sent/delivered/seen receipts.
 - Edit and soft-delete controls for your own messages.
 - Profile editing (display name, username, and bio).
@@ -17,7 +19,7 @@ Native Android messaging app project built with Java, XML layouts, Android SDK, 
 - Foreground online/last-seen updates with a 60-second heartbeat while the app remains active.
 - Native Supabase Realtime WebSocket subscription for the open conversation, with five-second REST polling as a fallback.
 - WorkManager background checks for local message notifications (minimum 15-minute interval; not instant push).
-- English/Arabic language toggle, RTL layout direction, custom launcher icon, and rounded native controls.
+- English/Arabic language toggle, RTL layout direction, Infinity Chat launcher icon, and rounded native controls.
 
 ## Not yet complete or verified
 - Live WebSocket behavior and reconnection still need verification with two real accounts on an Android device; REST polling remains the fallback.
