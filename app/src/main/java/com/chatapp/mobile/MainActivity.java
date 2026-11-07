@@ -547,7 +547,22 @@ public class MainActivity extends AppCompatActivity {
                 runOnUiThread(()->message("Profile saved."));
             }catch(Exception e){runOnUiThread(()->message("Could not save profile: "+e.getMessage()));}});
         });
-        logout.setOnClickListener(v->{setPresence(false);WorkManager.getInstance(this).cancelUniqueWork("chat-message-check");ChatSession.clear(this);getSharedPreferences("chat_notifications",MODE_PRIVATE).edit().clear().apply();showAuth();});
+        logout.setOnClickListener(v->{
+            WorkManager.getInstance(this).cancelUniqueWork("chat-message-check");
+            final String userId=ChatSession.userId(this);
+            io.execute(()->{
+                try{
+                    String access=ChatSession.validToken(getApplicationContext());
+                    if(!userId.isEmpty()&&!access.isEmpty()){
+                        JSONObject offline=new JSONObject();offline.put("is_online",false);offline.put("last_seen_at",nowIso());
+                        SupabaseClient.patch("/rest/v1/profiles?id=eq."+SupabaseClient.enc(userId),access,offline);
+                    }
+                }catch(Exception ignored){}
+                ChatSession.clear(getApplicationContext());
+                getSharedPreferences("chat_notifications",MODE_PRIVATE).edit().clear().apply();
+                runOnUiThread(()->{stopRealtime();showAuth();});
+            });
+        });
     }
     private void showMessageActions(JSONObject msg) {
         String id=msg.optString("id"), original=msg.optString("body","");
