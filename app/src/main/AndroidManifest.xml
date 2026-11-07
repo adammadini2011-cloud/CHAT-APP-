@@ -3,7 +3,7 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <application
         android:allowBackup="false"
-        android:label="Chat App"
+        android:label="Infinity Chat"
         android:icon="@drawable/ic_chat_app"
         android:theme="@style/Theme.ChatApp"
         android:usesCleartextTraffic="false">
