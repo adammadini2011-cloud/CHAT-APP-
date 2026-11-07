@@ -63,7 +63,17 @@ public class MainActivity extends AppCompatActivity {
         }
     };
 
-    private boolean isArabic(){return "ar".equals(getSharedPreferences("app_settings",MODE_PRIVATE).getString("language","en"));}
+    private String appLanguage(){
+        android.content.SharedPreferences prefs=getSharedPreferences("app_settings",MODE_PRIVATE);
+        String saved=prefs.getString("language","");
+        if(saved.isEmpty()){
+            String device=Locale.getDefault().getLanguage();
+            saved="ar".equalsIgnoreCase(device)?"ar":"en";
+            prefs.edit().putString("language",saved).apply();
+        }
+        return saved;
+    }
+    private boolean isArabic(){return "ar".equals(appLanguage());}
     private String tr(String s){
         if(!isArabic()||s==null)return s;
         switch(s){
