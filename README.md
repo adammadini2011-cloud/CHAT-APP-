@@ -37,3 +37,21 @@ The backend includes profiles, conversations, conversation members, messages, me
 GitHub Actions builds a debug APK using JDK 17, Gradle 8.9, and Android SDK 35. Check the latest workflow run and download the `chat-app-debug` artifact only after it succeeds.
 
 This is a substantial working development build, but it is not yet a fully tested production replacement for WhatsApp or Messenger.
+
+
+## Sign-in methods
+
+- Email and password registration and sign-in are included.
+- Password visibility can be toggled on the sign-in screen.
+- Google and Facebook OAuth launch through the system browser and return to the app using `infinitychat://auth/callback`.
+
+### Required one-time provider setup
+
+Social login cannot work until provider credentials are configured by the project owner:
+
+1. In Supabase Dashboard → Authentication → URL Configuration, add `infinitychat://auth/callback` to the allowed Redirect URLs.
+2. In Authentication → Sign In / Providers, enable Google and Facebook and enter the OAuth Client ID and Client Secret obtained from their official developer consoles.
+3. For Google, add the Supabase callback URL `https://cuoofbmyandlhxwjkyqy.supabase.co/auth/v1/callback` to the Google OAuth client's authorized redirect URIs.
+4. For Facebook, add that same Supabase callback URL to Valid OAuth Redirect URIs and request the email permission.
+
+Do not put provider client secrets in the Android app or source repository. Facebook apps may need to be switched to Live mode or the user added as a tester. Provider sign-in must be tested after these settings are completed.
