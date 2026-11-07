@@ -12,6 +12,15 @@ import android.text.InputType;
 import android.view.Gravity;
 import android.view.View;
 import android.util.Base64;
+import android.os.Build;
+import android.Manifest;
+import android.content.pm.PackageManager;
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
+import androidx.work.ExistingPeriodicWorkPolicy;
+import androidx.work.PeriodicWorkRequest;
+import androidx.work.WorkManager;
+import java.util.concurrent.TimeUnit;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
@@ -66,6 +75,14 @@ public class MainActivity extends AppCompatActivity {
         content = new LinearLayout(this); content.setOrientation(LinearLayout.VERTICAL); content.setPadding(dp(16),dp(14),dp(16),dp(12));
         root.addView(content,new LinearLayout.LayoutParams(-1,0,1));
     }
+    private void scheduleNotifications() {
+        if(ChatSession.token(this).isEmpty())return;
+        if(Build.VERSION.SDK_INT>=33 && ContextCompat.checkSelfPermission(this,Manifest.permission.POST_NOTIFICATIONS)!=PackageManager.PERMISSION_GRANTED){
+            ActivityCompat.requestPermissions(this,new String[]{Manifest.permission.POST_NOTIFICATIONS},8201);
+        }
+        PeriodicWorkRequest request=new PeriodicWorkRequest.Builder(ChatNotificationWorker.class,15,TimeUnit.MINUTES).build();
+        WorkManager.getInstance(this).enqueueUniquePeriodicWork("chat-message-check",ExistingPeriodicWorkPolicy.KEEP,request);
+    }
     private void message(String s) { Toast.makeText(this,s,Toast.LENGTH_LONG).show(); }
 
     @Override protected void onCreate(Bundle state) {
@@ -118,28 +135,10 @@ public class MainActivity extends AppCompatActivity {
         SimpleDateFormat f = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US);
         f.setTimeZone(TimeZone.getTimeZone("UTC")); return f.format(new Date());
     }
-    private String token(){
-        String current = ChatSession.token(this);
-        String refresh = ChatSession.refresh(this);
-        if (current.isEmpty() || refresh.isEmpty()) return current;
-        try {
-            String[] parts = current.split("\\.");
-            if (parts.length > 1) {
-                byte[] decoded = Base64.decode(parts[1], Base64.URL_SAFE | Base64.NO_WRAP | Base64.NO_PADDING);
-                long exp = new JSONObject(new String(decoded, java.nio.charset.StandardCharsets.UTF_8)).optLong("exp", 0L);
-                if (exp > 0 && exp < (System.currentTimeMillis()/1000L) + 120L) {
-                    JSONObject renewed = SupabaseAuth.refresh(refresh);
-                    String access = renewed.optString("access_token", "");
-                    String nextRefresh = renewed.optString("refresh_token", refresh);
-                    if (!access.isEmpty()) ChatSession.save(this, access, nextRefresh, renewed.optJSONObject("user") == null ? uid() : renewed.optJSONObject("user").optString("id", uid()), ChatSession.email(this));
-                    if (!access.isEmpty()) current = access;
-                }
-            }
-        } catch (Exception ignored) {}
-        return current;
-    }
+    private String token(){return ChatSession.validToken(this);}
     private String uid(){return ChatSession.userId(this);}
     private void showHome() {
+        scheduleNotifications();
         inChat=false; handler.removeCallbacks(refreshRunnable);
         base("Your chats","＋",v->showSearch());
         LinearLayout actions=new LinearLayout(this); actions.setOrientation(LinearLayout.HORIZONTAL);
@@ -437,7 +436,7 @@ public class MainActivity extends AppCompatActivity {
                 runOnUiThread(()->message("Profile saved."));
             }catch(Exception e){runOnUiThread(()->message("Could not save profile: "+e.getMessage()));}});
         });
-        logout.setOnClickListener(v->{ChatSession.clear(this);showAuth();});
+        logout.setOnClickListener(v->{WorkManager.getInstance(this).cancelUniqueWork("chat-message-check");ChatSession.clear(this);getSharedPreferences("chat_notifications",MODE_PRIVATE).edit().clear().apply();showAuth();});
     }
     private void showMessageActions(JSONObject msg) {
         String id=msg.optString("id"), original=msg.optString("body","");
