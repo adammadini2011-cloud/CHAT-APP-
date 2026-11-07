@@ -5,6 +5,7 @@ import android.content.Context;
 import android.net.Uri;
 import org.json.JSONObject;
 import java.io.InputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
@@ -34,12 +35,18 @@ final class SupabaseStorage {
         }
         int code=c.getResponseCode();String response="";
         if(code<200||code>=300){
-            if(c.getErrorStream()!=null)response=new String(c.getErrorStream().readAllBytes(),"UTF-8");
+            if(c.getErrorStream()!=null)response=readText(c.getErrorStream());
             c.disconnect();throw new Exception("Upload failed ("+code+"): "+response);
         }
         c.disconnect();
         return path+"|"+mime;
     }
+    private static byte[] readBytes(InputStream in) throws Exception {
+        try(InputStream source=in;ByteArrayOutputStream out=new ByteArrayOutputStream()) {
+            byte[] buffer=new byte[8192];int n;while((n=source.read(buffer))!=-1)out.write(buffer,0,n);return out.toByteArray();
+        }
+    }
+    private static String readText(InputStream in) throws Exception { return new String(readBytes(in),"UTF-8"); }
     static String signedUrl(String path,String token) throws Exception {
         URL url=new URL(SupabaseConfig.PROJECT_URL+"/storage/v1/object/sign/chat-media/"+path);
         HttpURLConnection c=(HttpURLConnection)url.openConnection();
@@ -51,7 +58,7 @@ final class SupabaseStorage {
         try(OutputStream out=c.getOutputStream()){out.write(body);}
         int code=c.getResponseCode();
         InputStream in=code>=200&&code<300?c.getInputStream():c.getErrorStream();
-        byte[] bytes=in==null?new byte[0]:in.readAllBytes();c.disconnect();
+        byte[] bytes=in==null?new byte[0]:readBytes(in);c.disconnect();
         if(code<200||code>=300)throw new Exception("Could not open attachment ("+code+")");
         JSONObject result=new JSONObject(new String(bytes,"UTF-8"));
         String signed=result.optString("signedURL","");
