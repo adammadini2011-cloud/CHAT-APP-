@@ -17,6 +17,13 @@ final class SupabaseStorage {
         ContentResolver resolver=context.getContentResolver();
         String mime=resolver.getType(uri);
         if(mime==null)mime="application/octet-stream";
+        mime=mime.trim().toLowerCase(java.util.Locale.ROOT);
+        int mimeParameters=mime.indexOf(';');
+        if(mimeParameters>=0)mime=mime.substring(0,mimeParameters).trim();
+        if(!isAllowedMimeType(mime)){
+            throw new Exception("Unsupported file type: "+mime+". Choose JPEG, PNG, WEBP, GIF, MP4, PDF, or TXT.");
+        }
+        String attachmentCategory=mime.startsWith("image/")?"image":(mime.startsWith("video/")?"video":"file");
         String ext="bin";
         int slash=mime.indexOf('/');
         if(slash>=0&&slash<mime.length()-1)ext=mime.substring(slash+1).replaceAll("[^A-Za-z0-9]","");
@@ -39,7 +46,16 @@ final class SupabaseStorage {
             c.disconnect();throw new Exception("Upload failed ("+code+"): "+response);
         }
         c.disconnect();
-        return path+"|"+mime;
+        return path+"|"+attachmentCategory;
+    }
+    private static boolean isAllowedMimeType(String mime) {
+        return "image/jpeg".equals(mime)
+            || "image/png".equals(mime)
+            || "image/webp".equals(mime)
+            || "image/gif".equals(mime)
+            || "video/mp4".equals(mime)
+            || "application/pdf".equals(mime)
+            || "text/plain".equals(mime);
     }
     private static byte[] readBytes(InputStream in) throws Exception {
         try(InputStream source=in;ByteArrayOutputStream out=new ByteArrayOutputStream()) {
