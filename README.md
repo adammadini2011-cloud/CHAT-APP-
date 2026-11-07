@@ -18,6 +18,7 @@ Native Android messenger source project built with Java, XML layouts, Android SD
 - Record delivery/read receipts and display sent/delivered/seen states.
 - Edit or soft-delete your own messages.
 - Edit profile display name, username, and bio.
+- Show typing indicators in open chats using a private RLS-protected typing-status table.
 - Block/unblock users from the people search.
 - Manage groups: rename, add/remove members as owner, and leave a group.
 - Periodic background message checks using Android WorkManager (minimum 15-minute interval); these are local polling notifications, not instant push.
