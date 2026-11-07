@@ -2,66 +2,59 @@ package com.chatapp.mobile;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
-import java.io.BufferedReader;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.io.OutputStream;
-import java.net.HttpURLConnection;
-import java.net.URL;
+import okhttp3.MediaType;
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.RequestBody;
+import okhttp3.Response;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.util.concurrent.TimeUnit;
 
 final class SupabaseClient {
+    private static final MediaType JSON = MediaType.parse("application/json; charset=utf-8");
+    private static final OkHttpClient HTTP = new OkHttpClient.Builder()
+        .connectTimeout(15, TimeUnit.SECONDS).readTimeout(25, TimeUnit.SECONDS)
+        .writeTimeout(25, TimeUnit.SECONDS).build();
     private SupabaseClient() {}
     static String enc(String value) throws Exception {
         return URLEncoder.encode(value, "UTF-8").replace("+", "%20");
     }
     static String request(String method, String path, String token, JSONObject body, String prefer) throws Exception {
-        URL url = new URL(SupabaseConfig.PROJECT_URL + path);
-        HttpURLConnection c = (HttpURLConnection) url.openConnection();
-        c.setRequestMethod(method);
-        c.setConnectTimeout(15000);
-        c.setReadTimeout(20000);
-        c.setRequestProperty("apikey", SupabaseConfig.PUBLISHABLE_KEY);
-        c.setRequestProperty("Authorization", "Bearer " + token);
-        c.setRequestProperty("Content-Type", "application/json");
-        c.setRequestProperty("Accept", "application/json");
-        if (prefer != null) c.setRequestProperty("Prefer", prefer);
-        if (body != null) {
-            c.setDoOutput(true);
-            try (OutputStream out = c.getOutputStream()) {
-                out.write(body.toString().getBytes(StandardCharsets.UTF_8));
+        RequestBody requestBody = body == null ? null : RequestBody.create(JSON, body.toString());
+        Request.Builder builder = new Request.Builder()
+            .url(SupabaseConfig.PROJECT_URL + path)
+            .header("apikey", SupabaseConfig.PUBLISHABLE_KEY)
+            .header("Authorization", "Bearer " + token)
+            .header("Accept", "application/json");
+        if (body != null) builder.header("Content-Type", "application/json");
+        if (prefer != null) builder.header("Prefer", prefer);
+        if ("GET".equals(method) || "DELETE".equals(method)) builder.method(method, null);
+        else builder.method(method, requestBody == null ? RequestBody.create(null, new byte[0]) : requestBody);
+        try (Response response = HTTP.newCall(builder.build()).execute()) {
+            String value = response.body() == null ? "" : response.body().string();
+            if (!response.isSuccessful()) {
+                String detail = value;
+                try { JSONObject error = new JSONObject(value); detail = error.optString("message", error.optString("msg", error.optString("error", value))); } catch (Exception ignored) {}
+                throw new Exception("Server (" + response.code() + "): " + detail);
             }
+            return value;
         }
-        int code = c.getResponseCode();
-        InputStream in = code >= 200 && code < 300 ? c.getInputStream() : c.getErrorStream();
-        StringBuilder result = new StringBuilder();
-        if (in != null) {
-            try (BufferedReader reader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8))) {
-                String line;
-                while ((line = reader.readLine()) != null) result.append(line);
-            }
-        }
-        c.disconnect();
-        if (code < 200 || code >= 300) {
-            String message = result.toString();
-            try {
-                JSONObject error = new JSONObject(message);
-                message = error.optString("message", error.optString("msg", error.optString("error", message)));
-            } catch (Exception ignored) {}
-            throw new Exception("Server (" + code + "): " + message);
-        }
-        return result.toString();
     }
     static JSONArray getArray(String path, String token) throws Exception {
-        String value = request("GET", path, token, null, null);
-        return new JSONArray(value);
+        return new JSONArray(request("GET", path, token, null, null));
     }
     static JSONArray post(String path, String token, JSONObject body) throws Exception {
         String value = request("POST", path, token, body, "return=representation");
         return value.isEmpty() ? new JSONArray() : new JSONArray(value);
     }
+    static void upsert(String path, String token, JSONObject body) throws Exception {
+        request("POST", path, token, body, "resolution=merge-duplicates,return=minimal");
+    }
     static void patch(String path, String token, JSONObject body) throws Exception {
         request("PATCH", path, token, body, "return=minimal");
+    }
+    static void delete(String path, String token) throws Exception {
+        request("DELETE", path, token, null, "return=minimal");
     }
 }
