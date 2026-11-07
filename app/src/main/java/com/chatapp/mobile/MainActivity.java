@@ -2,6 +2,7 @@ package com.chatapp.mobile;
 
 import android.app.AlertDialog;
 import android.graphics.Color;
+import android.graphics.drawable.GradientDrawable;
 import android.graphics.Typeface;
 import android.content.Intent;
 import android.net.Uri;
@@ -94,7 +95,7 @@ public class MainActivity extends AppCompatActivity {
     }
     private Button button(String label) {
         Button b = new Button(this); b.setText(tr(label)); b.setAllCaps(false);
-        b.setTextColor(Color.WHITE); b.setBackgroundTintList(android.content.res.ColorStateList.valueOf(0xFF263750));
+        b.setTextColor(Color.WHITE); GradientDrawable shape=new GradientDrawable(); shape.setColor(0xFF263750); shape.setCornerRadius(dp(15)); b.setBackground(shape); b.setPadding(dp(16),0,dp(16),0); b.setStateListAnimator(null);
         return b;
     }
     private void base(String title, String action, View.OnClickListener listener) {
@@ -324,8 +325,7 @@ public class MainActivity extends AppCompatActivity {
             if(!attachment.isEmpty())body="📎 Open attachment ("+m.optString("attachment_type","file")+")";
             TextView bubble=text(body,15,mine?Color.WHITE:0xFFE6EDF7,false);
             bubble.setPadding(dp(14),dp(10),dp(14),dp(10));
-            bubble.setBackgroundTintList(null);
-            bubble.setBackgroundColor(mine?0xFF176B63:0xFF263750);
+            GradientDrawable bubbleShape=new GradientDrawable();bubbleShape.setColor(mine?0xFF176B63:0xFF263750);bubbleShape.setCornerRadius(dp(16));bubble.setBackground(bubbleShape);
             if(!attachment.isEmpty())bubble.setOnClickListener(v->openAttachment(attachment));
             LinearLayout line=new LinearLayout(this);line.setGravity(mine?Gravity.END:Gravity.START);
             if(mine) {
