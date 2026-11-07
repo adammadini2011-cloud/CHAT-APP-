@@ -14,6 +14,7 @@ import android.text.TextWatcher;
 import android.text.Editable;
 import android.view.Gravity;
 import android.view.View;
+import android.view.LayoutInflater;
 import android.util.Base64;
 import android.os.Build;
 import android.Manifest;
@@ -108,14 +109,15 @@ public class MainActivity extends AppCompatActivity {
         return b;
     }
     private void base(String title, String action, View.OnClickListener listener) {
-        root = new LinearLayout(this); root.setLayoutDirection(isArabic()?View.LAYOUT_DIRECTION_RTL:View.LAYOUT_DIRECTION_LTR); root.setOrientation(LinearLayout.VERTICAL); root.setBackgroundColor(0xFF101827);
+        root = (LinearLayout) LayoutInflater.from(this).inflate(R.layout.activity_main, null);
+        root.setLayoutDirection(isArabic()?View.LAYOUT_DIRECTION_RTL:View.LAYOUT_DIRECTION_LTR);
         setContentView(root);
-        toolbar = new LinearLayout(this); toolbar.setGravity(Gravity.CENTER_VERTICAL); toolbar.setPadding(dp(16),dp(10),dp(12),dp(10));
-        toolbar.setBackgroundColor(0xFF17243A); root.addView(toolbar,new LinearLayout.LayoutParams(-1,dp(60)));
-        TextView heading=text(title,20,Color.WHITE,true); toolbar.addView(heading,new LinearLayout.LayoutParams(0,-2,1));
+        toolbar = root.findViewById(R.id.toolbar);
+        content = root.findViewById(R.id.content);
+        toolbar.removeAllViews();content.removeAllViews();
+        TextView heading=text(title,20,Color.WHITE,true);
+        toolbar.addView(heading,new LinearLayout.LayoutParams(0,-2,1));
         if (action != null) { Button a=button(action); toolbar.addView(a); a.setOnClickListener(listener); }
-        content = new LinearLayout(this); content.setOrientation(LinearLayout.VERTICAL); content.setPadding(dp(16),dp(14),dp(16),dp(12));
-        root.addView(content,new LinearLayout.LayoutParams(-1,0,1));
     }
     private void scheduleNotifications() {
         if(ChatSession.token(this).isEmpty())return;
