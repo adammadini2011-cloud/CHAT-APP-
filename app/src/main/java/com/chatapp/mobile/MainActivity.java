@@ -10,6 +10,8 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.text.InputType;
+import android.text.TextWatcher;
+import android.text.Editable;
 import android.view.Gravity;
 import android.view.View;
 import android.util.Base64;
@@ -46,6 +48,8 @@ public class MainActivity extends AppCompatActivity {
     private LinearLayout root, content, toolbar;
     private String currentConversationId = "";
     private String currentConversationTitle = "";
+    private TextView typingIndicator;
+    private Runnable typingUpdateRunnable;
     private boolean inChat = false;
     private final Runnable refreshRunnable = new Runnable() {
         @Override public void run() {
@@ -164,9 +168,13 @@ public class MainActivity extends AppCompatActivity {
             }catch(Exception e){runOnUiThread(()->status.setText(e.getMessage()));}
         });
     }
-    private String nowIso() {
+    private String isoAt(long time) {
         SimpleDateFormat f = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US);
-        f.setTimeZone(TimeZone.getTimeZone("UTC")); return f.format(new Date());
+        f.setTimeZone(TimeZone.getTimeZone("UTC")); return f.format(new Date(time));
+    }
+    private String nowIso(){return isoAt(System.currentTimeMillis());}
+    private void setTypingStatus(String conversationId,boolean typing){
+        io.execute(()->{try{JSONObject row=new JSONObject();row.put("conversation_id",conversationId);row.put("user_id",uid());row.put("is_typing",typing);row.put("updated_at",nowIso());SupabaseClient.upsert("/rest/v1/typing_status?on_conflict=conversation_id,user_id",token(),row);}catch(Exception ignored){}});
     }
     private String token(){return ChatSession.validToken(this);}
     private String uid(){return ChatSession.userId(this);}
@@ -275,11 +283,22 @@ public class MainActivity extends AppCompatActivity {
     }
     private void openChat(ChatItem item) {
         currentConversationId=item.id; currentConversationTitle=item.title; inChat=true;
-        base(item.title,item.group?"Manage":"Back",v->{if(item.group)showGroupManagement();else{inChat=false;handler.removeCallbacks(refreshRunnable);showHome();}});
+        base(item.title,item.group?"Manage":"Back",v->{if(item.group)showGroupManagement();else{setTypingStatus(currentConversationId,false);inChat=false;handler.removeCallbacks(refreshRunnable);showHome();}});
         ScrollView sc=new ScrollView(this); sc.setFillViewport(false); content.addView(sc,new LinearLayout.LayoutParams(-1,0,1));
+        typingIndicator=text("",12,0xFF35C7A5,false);content.addView(typingIndicator,match(dp(24)));
         LinearLayout messages=new LinearLayout(this); messages.setOrientation(LinearLayout.VERTICAL); sc.addView(messages);
         LinearLayout composer=new LinearLayout(this); composer.setGravity(Gravity.CENTER_VERTICAL); composer.setPadding(0,dp(8),0,0);
         EditText input=field("Write a message…",InputType.TYPE_CLASS_TEXT|InputType.TYPE_TEXT_FLAG_MULTI_LINE);
+        input.addTextChangedListener(new TextWatcher(){
+            @Override public void beforeTextChanged(CharSequence s,int start,int count,int after){}
+            @Override public void onTextChanged(CharSequence s,int start,int before,int count){}
+            @Override public void afterTextChanged(Editable value){
+                if(typingUpdateRunnable!=null)handler.removeCallbacks(typingUpdateRunnable);
+                final String cid=currentConversationId;final boolean typing=value.length()>0;
+                typingUpdateRunnable=()->setTypingStatus(cid,typing);
+                handler.postDelayed(typingUpdateRunnable,450);
+            }
+        });
         Button attach=button("＋"); Button send=button("Send");
         composer.addView(attach,new LinearLayout.LayoutParams(dp(48),dp(52))); composer.addView(input,new LinearLayout.LayoutParams(0,dp(52),1)); composer.addView(send,new LinearLayout.LayoutParams(dp(82),dp(52)));
         attach.setOnClickListener(v->{Intent pick=new Intent(Intent.ACTION_OPEN_DOCUMENT);pick.addCategory(Intent.CATEGORY_OPENABLE);pick.setType("*/*");startActivityForResult(pick,410);});
@@ -306,7 +325,9 @@ public class MainActivity extends AppCompatActivity {
                         SupabaseClient.upsert("/rest/v1/message_receipts?on_conflict=message_id,user_id",token(),receipt);
                     }
                 }
-                runOnUiThread(()->renderMessages(rows));
+                String cutoff=SupabaseClient.enc(isoAt(System.currentTimeMillis()-12000L));
+                JSONArray typing=SupabaseClient.getArray("/rest/v1/typing_status?select=user_id&conversation_id=eq."+SupabaseClient.enc(currentConversationId)+"&user_id=neq."+SupabaseClient.enc(uid())+"&is_typing=eq.true&updated_at=gt."+cutoff,token());
+                runOnUiThread(()->{if(typingIndicator!=null&&inChat)typingIndicator.setText(typing.length()>0?tr("Someone is typing…"):"");renderMessages(rows);});
             }catch(Exception e){if(showLoading)runOnUiThread(()->message("Messages: "+e.getMessage()));}
         });
     }
