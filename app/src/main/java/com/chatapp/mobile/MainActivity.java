@@ -216,6 +216,18 @@ public class MainActivity extends AppCompatActivity {
         message("Opening conversation…");
         io.execute(()->{
             try{
+                JSONArray blockedByMe=SupabaseClient.getArray("/rest/v1/user_blocks?select=blocked_id&blocker_id=eq."+SupabaseClient.enc(uid())+"&blocked_id=eq."+SupabaseClient.enc(otherId),token());
+                JSONArray blockedMe=SupabaseClient.getArray("/rest/v1/user_blocks?select=blocker_id&blocker_id=eq."+SupabaseClient.enc(otherId)+"&blocked_id=eq."+SupabaseClient.enc(uid()),token());
+                if(blockedByMe.length()>0||blockedMe.length()>0){runOnUiThread(()->message("This conversation is unavailable because one of you has blocked the other."));return;}
+                JSONArray mine=SupabaseClient.getArray("/rest/v1/conversation_members?select=conversation_id&user_id=eq."+SupabaseClient.enc(uid()),token());
+                for(int i=0;i<mine.length();i++){
+                    String existingId=mine.getJSONObject(i).optString("conversation_id");
+                    JSONArray other=SupabaseClient.getArray("/rest/v1/conversation_members?select=user_id&conversation_id=eq."+SupabaseClient.enc(existingId)+"&user_id=eq."+SupabaseClient.enc(otherId),token());
+                    if(other.length()>0){
+                        JSONArray details=SupabaseClient.getArray("/rest/v1/conversations?select=title,is_group&id=eq."+SupabaseClient.enc(existingId)+"&is_group=eq.false&limit=1",token());
+                        if(details.length()>0){String title=details.getJSONObject(0).optString("title",name);runOnUiThread(()->openChat(new ChatItem(existingId,title,false)));return;}
+                    }
+                }
                 JSONObject conv=new JSONObject(); conv.put("is_group",false);conv.put("created_by",uid());conv.put("title",name);
                 JSONArray created=SupabaseClient.post("/rest/v1/conversations",token(),conv);
                 String cid=created.getJSONObject(0).getString("id");
