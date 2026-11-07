@@ -1,20 +1,34 @@
 # CHAT-APP-
 
-Native Android messaging app (Java + XML), connected to the Supabase project configured for this repository.
+A native Android messaging project using Java, XML layouts, Android SDK, and Supabase.
 
-## Current implementation
-This repository is being built as a native Android application, not a website or WebView. The first source drop establishes the Android project, Supabase Auth sign-in/sign-up, and the initial chat screen scaffold.
+## Implemented in source
+- Native Android Gradle project (Java, XML, AndroidX).
+- Supabase email/password sign-up and sign-in using the public publishable key.
+- Local persistence of the returned access/refresh tokens and signed-in user ID.
+- Conversation list from `conversation_members`.
+- Search for profiles by username or display name.
+- Create a one-to-one conversation and add both members.
+- Create a group by group name and comma-separated existing usernames.
+- Send and retrieve text messages from Supabase.
+- Five-second message refresh while a conversation is open.
+- Sign out.
 
-## Requirements
-- Android Studio / Android Gradle Plugin
-- JDK 17
-- Android SDK 35
+## Not implemented / not yet verified
+- Media picker, uploads, and in-app media preview.
+- Push notifications (requires Firebase project configuration and device tokens).
+- Native Supabase Realtime/WebSocket subscriptions; current chat refresh uses periodic REST polling.
+- Message delivery/read receipts, edit/delete UI, block UI, profile editing, typing indicators, presence heartbeat, and group administration.
+- Token refresh/automatic session renewal.
+- Accessibility, localization, full RTL polish, and broad device testing.
+- A successful Android APK build has not yet been confirmed.
 
-## Configure
-The app uses the public Supabase project URL and publishable key in `app/src/main/java/com/chatapp/mobile/SupabaseConfig.java`. A publishable key is intended for client apps; never place a service-role or secret key in an Android app.
+## Backend
+This app is configured for the Supabase project URL and its public publishable key in `SupabaseConfig.java`. Never put a service-role or secret key in this Android project.
+
+The database contains profiles, conversations, conversation members, messages, message receipts, and user blocks. Row Level Security is enabled. The conversation-member insert policy was tightened so only the conversation creator can add members. Review all policies and storage rules before production use.
 
 ## Build
-Open the repository root in Android Studio and allow Gradle sync. Build with the Android app bundle/APK task.
+Open the repository root in Android Studio with JDK 17 and Android SDK 35. GitHub Actions is configured to run `gradle assembleDebug` on pushes to `main` and upload the debug APK as an artifact if the build succeeds.
 
-## Important status
-Do not treat this source drop as a finished WhatsApp/Messenger replacement. Group management, media upload, realtime subscriptions, push notifications, delivery/read receipts, blocking, and production security review still need implementation and device testing.
+This is an actively developed source project, not yet a production-ready messenger.
