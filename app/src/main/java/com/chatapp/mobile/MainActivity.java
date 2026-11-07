@@ -242,7 +242,8 @@ public class MainActivity extends AppCompatActivity {
             line.addView(bubble,new LinearLayout.LayoutParams(-2,-2));
             LinearLayout.LayoutParams p=match(-2);p.topMargin=dp(5);msgs.addView(line,p);
         }
-        if(sc!=null)sc.post(()->sc.fullScroll(View.FOCUS_DOWN));
+        final ScrollView scrollTarget=sc;
+        if(scrollTarget!=null)scrollTarget.post(()->scrollTarget.fullScroll(View.FOCUS_DOWN));
     }
     private void sendMessage(String body) {
         final String cid=currentConversationId;
