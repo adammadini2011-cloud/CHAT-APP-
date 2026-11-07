@@ -58,8 +58,8 @@ public class MainActivity extends AppCompatActivity {
     private boolean inChat = false;
     private final Runnable refreshRunnable = new Runnable() {
         @Override public void run() {
-            if (inChat && !isFinishing()) loadMessages(false);
-            if (inChat) handler.postDelayed(this, 5000);
+            if (inChat && activityStarted && !isFinishing()) loadMessages(false);
+            if (inChat && activityStarted) handler.postDelayed(this, 5000);
         }
     };
 
@@ -613,7 +613,7 @@ public class MainActivity extends AppCompatActivity {
             SupabaseClient.patch("/rest/v1/profiles?id=eq."+SupabaseClient.enc(userId),access,p);
         }catch(Exception ignored){}});
     }
-    @Override protected void onStart(){super.onStart();activityStarted=true;setPresence(true);handler.removeCallbacks(presenceHeartbeat);handler.postDelayed(presenceHeartbeat,60000L);if(inChat&&!currentConversationId.isEmpty())startRealtime(currentConversationId);}
+    @Override protected void onStart(){super.onStart();activityStarted=true;setPresence(true);handler.removeCallbacks(presenceHeartbeat);handler.postDelayed(presenceHeartbeat,60000L);if(inChat&&!currentConversationId.isEmpty()){startRealtime(currentConversationId);handler.removeCallbacks(refreshRunnable);handler.postDelayed(refreshRunnable,5000);}}
     @Override protected void onStop(){activityStarted=false;handler.removeCallbacks(presenceHeartbeat);if(inChat&&!currentConversationId.isEmpty())setTypingStatus(currentConversationId,false);stopRealtime();setPresence(false);super.onStop();}
     @Override protected void onDestroy(){stopRealtime();handler.removeCallbacks(refreshRunnable);io.shutdown();super.onDestroy();}
 }
