@@ -32,6 +32,10 @@ import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;
+import com.google.mlkit.nl.languageid.LanguageIdentification;
+import com.google.mlkit.nl.translate.Translation;
+import com.google.mlkit.nl.translate.Translator;
+import com.google.mlkit.nl.translate.TranslatorOptions;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import java.util.ArrayList;
@@ -504,12 +508,52 @@ public class MainActivity extends AppCompatActivity {
                 line.addView(bubbleWrap,new LinearLayout.LayoutParams(-2,-2));
             } else {
                 bubble.setOnLongClickListener(v->{return false;});
-                line.addView(bubble,new LinearLayout.LayoutParams(-2,-2));
+                LinearLayout receivedWrap=new LinearLayout(this);
+                receivedWrap.setOrientation(LinearLayout.VERTICAL);
+                receivedWrap.addView(bubble,new LinearLayout.LayoutParams(-2,-2));
+                if(attachment.isEmpty()&&!body.trim().isEmpty()){
+                    TextView translated=text("",13,0xFF9FB7D8,false);
+                    translated.setVisibility(View.GONE);
+                    translated.setPadding(dp(8),dp(5),dp(8),dp(2));
+                    receivedWrap.addView(translated);
+                    Button translateButton=button("Translate");
+                    translateButton.setTextSize(11);
+                    translateButton.setOnClickListener(v->{
+                        translateButton.setEnabled(false);
+                        translateButton.setText("Translating…");
+                        translateMessage(body,translated,()->{
+                            translateButton.setEnabled(true);
+                            translateButton.setText("Translate");
+                        });
+                    });
+                    receivedWrap.addView(translateButton,new LinearLayout.LayoutParams(-2,dp(36)));
+                }
+                line.addView(receivedWrap,new LinearLayout.LayoutParams(-2,-2));
             }
             LinearLayout.LayoutParams p=match(-2);p.topMargin=dp(5);msgs.addView(line,p);
         }
         final ScrollView scrollTarget=sc;
         if(scrollTarget!=null)scrollTarget.post(()->scrollTarget.fullScroll(View.FOCUS_DOWN));
+    }
+    private void translateMessage(String original,TextView output,Runnable finished) {
+        String target=Locale.getDefault().getLanguage();
+        if(target==null||target.trim().isEmpty())target="en";
+        final String targetLanguage=target;
+        LanguageIdentification.getClient().identifyLanguage(original)
+            .addOnSuccessListener(source->{
+                if(source==null||"und".equals(source)||source.equals(targetLanguage)){
+                    runOnUiThread(()->{output.setText(source!=null&&source.equals(targetLanguage)?"This message is already in your language.":"Language could not be detected.");output.setVisibility(View.VISIBLE);finished.run();});
+                    return;
+                }
+                TranslatorOptions options=new TranslatorOptions.Builder().setSourceLanguage(source).setTargetLanguage(targetLanguage).build();
+                Translator translator=Translation.getClient(options);
+                translator.downloadModelIfNeeded()
+                    .addOnSuccessListener(v->translator.translate(original)
+                        .addOnSuccessListener(result->runOnUiThread(()->{output.setText(result);output.setVisibility(View.VISIBLE);finished.run();translator.close();}))
+                        .addOnFailureListener(error->runOnUiThread(()->{output.setText("Translation failed: "+error.getLocalizedMessage());output.setVisibility(View.VISIBLE);finished.run();translator.close();})))
+                    .addOnFailureListener(error->runOnUiThread(()->{output.setText("Could not download language model. Connect to the internet and try again.");output.setVisibility(View.VISIBLE);finished.run();translator.close();}));
+            })
+            .addOnFailureListener(error->runOnUiThread(()->{output.setText("Language detection failed.");output.setVisibility(View.VISIBLE);finished.run();}));
     }
     private void openAttachment(String path) {
         io.execute(()->{try{String url=SupabaseStorage.signedUrl(path,token());Intent view=new Intent(Intent.ACTION_VIEW,Uri.parse(url));runOnUiThread(()->{try{startActivity(view);}catch(Exception e){message("No app can open this file.");}});}catch(Exception e){runOnUiThread(()->message(e.getMessage()));}});
