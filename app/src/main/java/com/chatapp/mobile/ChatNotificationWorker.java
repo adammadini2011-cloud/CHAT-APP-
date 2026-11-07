@@ -43,7 +43,7 @@ public class ChatNotificationWorker extends Worker {
             }
             if(ids.length()==0){prefs.edit().putLong("last_check",now).apply();return Result.success();}
             String path="/rest/v1/messages?select=id,body,sender_id,created_at,attachment_path&sender_id=neq."+SupabaseClient.enc(uid)
-                +"&created_at=gt."+SupabaseClient.enc(iso(last))+"&conversation_id=in.("+ids+")&order=created_at.asc&limit=20";
+                +"&created_at=gt."+SupabaseClient.enc(iso(last))+"&conversation_id=in.("+ids+")&order=created_at.asc&limit=1000";
             JSONArray messages=SupabaseClient.getArray(path,token);
             for(int i=0;i<messages.length();i++){
                 JSONObject msg=messages.optJSONObject(i);
