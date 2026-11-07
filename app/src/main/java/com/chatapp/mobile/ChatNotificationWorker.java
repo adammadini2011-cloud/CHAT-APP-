@@ -45,6 +45,15 @@ public class ChatNotificationWorker extends Worker {
             String path="/rest/v1/messages?select=id,body,sender_id,created_at,attachment_path&sender_id=neq."+SupabaseClient.enc(uid)
                 +"&created_at=gt."+SupabaseClient.enc(iso(last))+"&conversation_id=in.("+ids+")&order=created_at.asc&limit=20";
             JSONArray messages=SupabaseClient.getArray(path,token);
+            for(int i=0;i<messages.length();i++){
+                JSONObject msg=messages.optJSONObject(i);
+                if(msg==null)continue;
+                JSONObject receipt=new JSONObject();
+                receipt.put("message_id",msg.optString("id"));
+                receipt.put("user_id",uid);
+                receipt.put("delivered_at",iso(now));
+                SupabaseClient.upsert("/rest/v1/message_receipts?on_conflict=message_id,user_id",token,receipt);
+            }
             prefs.edit().putLong("last_check",now).apply();
             if(messages.length()==0)return Result.success();
             NotificationManager manager=(NotificationManager)context.getSystemService(Context.NOTIFICATION_SERVICE);
