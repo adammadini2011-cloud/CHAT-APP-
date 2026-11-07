@@ -206,7 +206,8 @@ public class MainActivity extends AppCompatActivity {
                         String username=u.optString("username","");
                         Button b=button(name+(username.isEmpty()?"":"  @"+username)+(u.optBoolean("is_online")?"  • online":""));
                         b.setGravity(Gravity.CENTER_VERTICAL|Gravity.START); LinearLayout.LayoutParams p=match(dp(58));p.bottomMargin=dp(6);results.addView(b,p);
-                        b.setOnClickListener(v->startDirect(id,name));\n                        b.setOnLongClickListener(v->{showUserActions(id,name);return true;});
+                        b.setOnClickListener(v->startDirect(id,name));
+                        b.setOnLongClickListener(v->{showUserActions(id,name);return true;});
                     }
                 });
             }catch(Exception e){runOnUiThread(()->{results.removeAllViews();results.addView(text(e.getMessage(),13,0xFFF2A7A7,false));});}
