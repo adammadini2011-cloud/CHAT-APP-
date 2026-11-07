@@ -17,7 +17,7 @@ final class ChatSession {
         prefs(c).edit().putString("access_token", access).putString("refresh_token", refresh)
             .putString("user_id", id).putString("email", email).apply();
     }
-    static String validToken(Context c) {
+    static synchronized String validToken(Context c) {
         String access=token(c), refresh=refresh(c);
         if(access.isEmpty()||refresh.isEmpty())return access;
         try{
