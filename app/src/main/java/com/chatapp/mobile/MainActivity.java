@@ -454,6 +454,9 @@ public class MainActivity extends AppCompatActivity {
         actions.addView(profile,new LinearLayout.LayoutParams(0,dp(48),1));
         content.addView(actions); find.setOnClickListener(v->showSearch()); group.setOnClickListener(v->createGroupDialog());
         profile.setOnClickListener(v->showProfile());
+        Button community=button("Community · Statuses · Channels · Privacy");
+        LinearLayout.LayoutParams communityParams=match(dp(48));communityParams.topMargin=dp(8);content.addView(community,communityParams);
+        community.setOnClickListener(v->startActivity(new Intent(this,CommunityActivity.class)));
         TextView hint=text("Private messages and groups",13,0xFFAAB6C8,false);
         LinearLayout.LayoutParams hp=match(dp(34)); hp.topMargin=dp(12); content.addView(hint,hp);
         ScrollView scroll=new ScrollView(this); content.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));
