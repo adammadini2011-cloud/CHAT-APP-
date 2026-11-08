@@ -16,6 +16,8 @@ jobs:
         uses: actions/checkout@v4
       - name: Apply additional native feature updates
         run: python3 scripts/apply_feature_updates.py
+      - name: Apply group message pin controls
+        run: python3 scripts/apply_message_pins.py
       - name: Set up Java 17
         uses: actions/setup-java@v4
         with:
