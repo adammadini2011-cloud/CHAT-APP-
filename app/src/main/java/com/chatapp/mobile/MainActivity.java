@@ -503,7 +503,7 @@ public class MainActivity extends AppCompatActivity {
         io.execute(()->{
             try{
                 String term="*"+q.replace("*","")+"*";
-                String path="/rest/v1/profiles?select=id,username,display_name,bio,is_online,last_seen_at& id=neq."+SupabaseClient.enc(uid())+
+                String path="/rest/v1/profile_directory?select=id,username,display_name,bio,is_online,last_seen_at& id=neq."+SupabaseClient.enc(uid())+
                     "&or=(username.ilike."+SupabaseClient.enc(term)+",display_name.ilike."+SupabaseClient.enc(term)+")&limit=30";
                 path=path.replace("&%20id","&id").replace("& id","&id");
                 JSONArray users=SupabaseClient.getArray(path,token());
