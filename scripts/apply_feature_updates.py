@@ -69,7 +69,7 @@ replace_once(main,
     private void showUserActions(String userId,String name) {''')
 
 replace_once(main,
-'''                bubbleWrap.addView(bubble);bubbleWrap.addView(status);''',
+'''bubbleWrap.addView(bubble);bubbleWrap.addView(status);''',
 '''                bubbleWrap.addView(bubble);bubbleWrap.addView(status);
                 String reactionText=reactionSummary(m.optJSONArray("message_reactions"));if(!reactionText.isEmpty()){TextView reactions=text(reactionText,11,0xFFB7D7F3,false);reactions.setPadding(dp(6),dp(2),dp(6),dp(2));bubbleWrap.addView(reactions);}''')
 
