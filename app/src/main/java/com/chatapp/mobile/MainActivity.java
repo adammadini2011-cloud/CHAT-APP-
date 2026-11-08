@@ -25,6 +25,8 @@ import androidx.work.ExistingPeriodicWorkPolicy;
 import androidx.work.PeriodicWorkRequest;
 import androidx.work.WorkManager;
 import java.util.concurrent.TimeUnit;
+import java.security.MessageDigest;
+import java.security.SecureRandom;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
@@ -228,45 +230,159 @@ public class MainActivity extends AppCompatActivity {
         GradientDrawable shape=new GradientDrawable(); shape.setColor(background); shape.setCornerRadius(dp(15));
         b.setBackground(shape); b.setStateListAnimator(null); return b;
     }
-    private void startSocialLogin(String provider,TextView status) {
-        try {
-            String redirect="infinitychat://auth/callback";
-            String url=SupabaseConfig.PROJECT_URL+"/auth/v1/authorize?provider="+provider+"&redirect_to="+SupabaseClient.enc(redirect);
-            status.setText("Opening "+(provider.equals("google")?"Google":"Facebook")+" sign-in…");
-            startActivity(new Intent(Intent.ACTION_VIEW,Uri.parse(url)));
-        } catch(Exception e) { status.setText("Could not start sign-in: "+e.getMessage()); }
+    private static final String OAUTH_PREFS = "pending_oauth";
+    private static final long OAUTH_MAX_AGE_MS = 10L * 60L * 1000L;
+
+    private String createPkceVerifier() {
+        byte[] random = new byte[32];
+        new SecureRandom().nextBytes(random);
+        return Base64.encodeToString(random, Base64.URL_SAFE | Base64.NO_WRAP | Base64.NO_PADDING);
     }
-    private boolean handleAuthRedirect(Intent intent) {
-        if(intent==null||intent.getData()==null)return false;
-        Uri uri=intent.getData();
-        if(!"infinitychat".equals(uri.getScheme())||!"auth".equals(uri.getHost()))return false;
-        String raw=uri.getFragment();
-        if(raw==null||raw.isEmpty())raw=uri.getEncodedQuery();
-        if(raw==null)raw="";
-        java.util.Map<String,String> params=new java.util.HashMap<>();
+
+    private String createPkceChallenge(String verifier) throws Exception {
+        byte[] digest = MessageDigest.getInstance("SHA-256").digest(verifier.getBytes(java.nio.charset.StandardCharsets.US_ASCII));
+        return Base64.encodeToString(digest, Base64.URL_SAFE | Base64.NO_WRAP | Base64.NO_PADDING);
+    }
+
+    private void clearPendingOAuth() {
+        getSharedPreferences(OAUTH_PREFS, MODE_PRIVATE).edit().clear().apply();
+    }
+
+    private void startSocialLogin(String provider, TextView status) {
         try {
-            for(String pair:raw.split("&")) {
-                int at=pair.indexOf('=');
-                if(at>0)params.put(java.net.URLDecoder.decode(pair.substring(0,at),"UTF-8"),java.net.URLDecoder.decode(pair.substring(at+1),"UTF-8"));
-            }
-            String error=params.get("error_description");
-            if(error==null)error=params.get("error");
-            String access=params.get("access_token"), refresh=params.get("refresh_token");
-            if(error!=null&&!error.isEmpty()){message("Sign-in failed: "+error);return true;}
-            if(access==null||access.isEmpty()||refresh==null||refresh.isEmpty()){message("Sign-in did not return a valid session.");return true;}
-            String userId="",userEmail="";
-            String[] parts=access.split("\\.");
-            if(parts.length>1) {
-                JSONObject claims=new JSONObject(new String(Base64.decode(parts[1],Base64.URL_SAFE|Base64.NO_WRAP|Base64.NO_PADDING),java.nio.charset.StandardCharsets.UTF_8));
-                userId=claims.optString("sub","");
-                userEmail=claims.optString("email","");
-            }
-            if(userId.isEmpty()){message("Could not read the signed-in account. Please try again.");return true;}
-            ChatSession.save(this,access,refresh,userId,userEmail);
-            message("Signed in successfully.");
-            showHome();
+            String verifier = createPkceVerifier();
+            String challenge = createPkceChallenge(verifier);
+            getSharedPreferences(OAUTH_PREFS, MODE_PRIVATE).edit()
+                .putString("code_verifier", verifier)
+                .putLong("created_at", System.currentTimeMillis())
+                .putString("provider", provider)
+                .apply();
+
+            String redirect = "infinitychat://auth/callback";
+            Uri authorize = Uri.parse(SupabaseConfig.PROJECT_URL + "/auth/v1/authorize").buildUpon()
+                .appendQueryParameter("provider", provider)
+                .appendQueryParameter("redirect_to", redirect)
+                .appendQueryParameter("response_type", "code")
+                .appendQueryParameter("code_challenge", challenge)
+                .appendQueryParameter("code_challenge_method", "s256")
+                .build();
+            status.setText("Opening " + (provider.equals("google") ? "Google" : "Facebook") + " sign-in…");
+            startActivity(new Intent(Intent.ACTION_VIEW, authorize));
+        } catch (Exception e) {
+            clearPendingOAuth();
+            status.setText("Could not start sign-in: " + e.getMessage());
+        }
+    }
+
+    private boolean handleAuthRedirect(Intent intent) {
+        if (intent == null || intent.getData() == null) return false;
+        Uri uri = intent.getData();
+        if (!"infinitychat".equals(uri.getScheme()) || !"auth".equals(uri.getHost())) return false;
+
+        String error = uri.getQueryParameter("error_description");
+        if (error == null) error = uri.getQueryParameter("error");
+        if (error != null && !error.isEmpty()) {
+            clearPendingOAuth();
+            showAuth();
+            message("Sign-in failed: " + error);
             return true;
-        } catch(Exception e) { message("Could not finish sign-in: "+e.getMessage()); return true; }
+        }
+
+        String authCode = uri.getQueryParameter("code");
+        if (authCode != null && !authCode.isEmpty()) {
+            android.content.SharedPreferences pending = getSharedPreferences(OAUTH_PREFS, MODE_PRIVATE);
+            String verifier = pending.getString("code_verifier", "");
+            long createdAt = pending.getLong("created_at", 0L);
+            if (verifier.isEmpty() || createdAt == 0L || System.currentTimeMillis() - createdAt > OAUTH_MAX_AGE_MS) {
+                clearPendingOAuth();
+                showAuth();
+                message("The sign-in session expired. Please try again.");
+                return true;
+            }
+
+            showAuth();
+            message("Completing sign-in…");
+            io.execute(() -> {
+                try {
+                    JSONObject result = SupabaseAuth.exchangeCodeForSession(authCode, verifier);
+                    String access = result.optString("access_token", "");
+                    String refresh = result.optString("refresh_token", "");
+                    JSONObject user = result.optJSONObject("user");
+                    String userId = user == null ? "" : user.optString("id", "");
+                    String userEmail = user == null ? "" : user.optString("email", "");
+
+                    if (access.isEmpty() || refresh.isEmpty()) throw new Exception("The provider did not return a complete session.");
+                    if (userId.isEmpty()) {
+                        String[] parts = access.split("\\.");
+                        if (parts.length > 1) {
+                            JSONObject claims = new JSONObject(new String(
+                                Base64.decode(parts[1], Base64.URL_SAFE | Base64.NO_WRAP | Base64.NO_PADDING),
+                                java.nio.charset.StandardCharsets.UTF_8));
+                            userId = claims.optString("sub", "");
+                            if (userEmail.isEmpty()) userEmail = claims.optString("email", "");
+                        }
+                    }
+                    if (userId.isEmpty()) throw new Exception("Could not identify the signed-in account.");
+                    ChatSession.save(getApplicationContext(), access, refresh, userId, userEmail);
+                    clearPendingOAuth();
+                    runOnUiThread(() -> {
+                        if (isFinishing()) return;
+                        message("Signed in successfully.");
+                        showHome();
+                    });
+                } catch (Exception e) {
+                    clearPendingOAuth();
+                    runOnUiThread(() -> {
+                        if (isFinishing()) return;
+                        showAuth();
+                        message("Could not finish sign-in: " + e.getMessage());
+                    });
+                }
+            });
+            return true;
+        }
+
+        // Backward-compatible handling for an older implicit-flow callback.
+        String raw = uri.getFragment();
+        if (raw == null || raw.isEmpty()) raw = uri.getEncodedQuery();
+        if (raw == null) raw = "";
+        java.util.Map<String, String> params = new java.util.HashMap<>();
+        try {
+            for (String pair : raw.split("&")) {
+                int at = pair.indexOf('=');
+                if (at > 0) params.put(
+                    java.net.URLDecoder.decode(pair.substring(0, at), "UTF-8"),
+                    java.net.URLDecoder.decode(pair.substring(at + 1), "UTF-8"));
+            }
+            String access = params.get("access_token");
+            String refresh = params.get("refresh_token");
+            if (access == null || access.isEmpty() || refresh == null || refresh.isEmpty()) {
+                clearPendingOAuth();
+                showAuth();
+                message("Sign-in did not return a valid authorization code. Please try again.");
+                return true;
+            }
+            String userId = "", userEmail = "";
+            String[] parts = access.split("\\.");
+            if (parts.length > 1) {
+                JSONObject claims = new JSONObject(new String(
+                    Base64.decode(parts[1], Base64.URL_SAFE | Base64.NO_WRAP | Base64.NO_PADDING),
+                    java.nio.charset.StandardCharsets.UTF_8));
+                userId = claims.optString("sub", "");
+                userEmail = claims.optString("email", "");
+            }
+            if (userId.isEmpty()) throw new Exception("Could not read the signed-in account.");
+            ChatSession.save(this, access, refresh, userId, userEmail);
+            clearPendingOAuth();
+            showHome();
+            message("Signed in successfully.");
+            return true;
+        } catch (Exception e) {
+            clearPendingOAuth();
+            showAuth();
+            message("Could not finish sign-in: " + e.getMessage());
+            return true;
+        }
     }
     private EditText field(String hint,int type) {
         EditText e=new EditText(this); boolean multiline=(type&InputType.TYPE_TEXT_FLAG_MULTI_LINE)!=0; e.setSingleLine(!multiline); if(multiline){e.setMaxLines(4);e.setGravity(Gravity.CENTER_VERTICAL|Gravity.START);} e.setHint(tr(hint)); e.setInputType(type);
