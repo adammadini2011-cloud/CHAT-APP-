@@ -62,6 +62,7 @@ public class MainActivity extends AppCompatActivity {
     private boolean activityStarted = false;
     private final Runnable presenceHeartbeat = new Runnable(){@Override public void run(){if(!isFinishing()){setPresence(true);handler.postDelayed(this,60000L);}}};
     private boolean inChat = false;
+    private String pendingReplyId = "";
     private final Runnable refreshRunnable = new Runnable() {
         @Override public void run() {
             if (inChat && activityStarted && !isFinishing()) loadMessages(false);
@@ -705,7 +706,8 @@ public class MainActivity extends AppCompatActivity {
         io.execute(()->{
             try{
                 JSONObject m=new JSONObject();m.put("conversation_id",cid);m.put("sender_id",uid());m.put("body",body);
-                SupabaseClient.post("/rest/v1/messages",token(),m);
+                if(!pendingReplyId.isEmpty())m.put("reply_to_id",pendingReplyId);
+                SupabaseClient.post("/rest/v1/messages",token(),m);pendingReplyId="";
                 runOnUiThread(()->loadMessages(false));
             }catch(Exception e){runOnUiThread(()->message("Message not sent: "+e.getMessage()));}
         });
@@ -845,19 +847,18 @@ public class MainActivity extends AppCompatActivity {
     }
     private void showMessageActions(JSONObject msg) {
         String id=msg.optString("id"), original=msg.optString("body","");
-        new AlertDialog.Builder(this).setTitle("Your message")
-            .setItems(new String[]{"Edit message","Delete message"},(dialog,which)->{
-                if(which==0){
-                    EditText editor=field("Message",InputType.TYPE_CLASS_TEXT|InputType.TYPE_TEXT_FLAG_MULTI_LINE);editor.setText(original);
-                    new AlertDialog.Builder(this).setTitle("Edit message").setView(editor)
-                        .setPositiveButton("Save",(d,w)->io.execute(()->{try{JSONObject patch=new JSONObject();patch.put("body",editor.getText().toString().trim());patch.put("edited_at",nowIso());SupabaseClient.patch("/rest/v1/messages?id=eq."+SupabaseClient.enc(id),token(),patch);runOnUiThread(()->loadMessages(false));}catch(Exception e){runOnUiThread(()->message("Edit failed: "+e.getMessage()));}}))
-                        .setNegativeButton("Cancel",null).show();
-                }else{
-                    new AlertDialog.Builder(this).setTitle("Delete message?").setMessage("This message will be removed from the chat.")
-                        .setPositiveButton("Delete",(d,w)->io.execute(()->{try{JSONObject patch=new JSONObject();patch.put("deleted_at",nowIso());SupabaseClient.patch("/rest/v1/messages?id=eq."+SupabaseClient.enc(id),token(),patch);runOnUiThread(()->loadMessages(false));}catch(Exception e){runOnUiThread(()->message("Delete failed: "+e.getMessage()));}}))
-                        .setNegativeButton("Cancel",null).show();
-                }
-            }).show();
+        boolean mine=uid().equals(msg.optString("sender_id"));
+        java.util.ArrayList<String> items=new java.util.ArrayList<>();
+        items.add("Reply"); items.add("Copy"); items.add("React 👍");
+        if(mine){items.add("Edit message");items.add("Delete message");}
+        new AlertDialog.Builder(this).setTitle("Message actions").setItems(items.toArray(new String[0]),(d,w)->{
+            String action=items.get(w);
+            if("Reply".equals(action)){pendingReplyId=id;message("Reply selected. Type your reply.");}
+            else if("Copy".equals(action)){((android.content.ClipboardManager)getSystemService(CLIPBOARD_SERVICE)).setPrimaryClip(android.content.ClipData.newPlainText("message",original));message("Copied.");}
+            else if("React 👍".equals(action)){io.execute(()->{try{JSONObject r=new JSONObject();r.put("message_id",id);r.put("user_id",uid());r.put("emoji","👍");SupabaseClient.upsert("/rest/v1/message_reactions?on_conflict=message_id,user_id,emoji",token(),r);runOnUiThread(()->message("Reaction added."));}catch(Exception e){runOnUiThread(()->message(e.getMessage()));}});}
+            else if("Edit message".equals(action)){EditText editor=field("Message",InputType.TYPE_CLASS_TEXT|InputType.TYPE_TEXT_FLAG_MULTI_LINE);editor.setText(original);new AlertDialog.Builder(this).setTitle("Edit message").setView(editor).setPositiveButton("Save",(x,y)->io.execute(()->{try{JSONObject p=new JSONObject();p.put("body",editor.getText().toString().trim());p.put("edited_at",nowIso());SupabaseClient.patch("/rest/v1/messages?id=eq."+SupabaseClient.enc(id),token(),p);runOnUiThread(()->loadMessages(false));}catch(Exception e){runOnUiThread(()->message(e.getMessage()));}})).setNegativeButton("Cancel",null).show();}
+            else if("Delete message".equals(action)){new AlertDialog.Builder(this).setTitle("Delete message?").setPositiveButton("Delete",(x,y)->io.execute(()->{try{JSONObject p=new JSONObject();p.put("deleted_at",nowIso());SupabaseClient.patch("/rest/v1/messages?id=eq."+SupabaseClient.enc(id),token(),p);runOnUiThread(()->loadMessages(false));}catch(Exception e){runOnUiThread(()->message(e.getMessage()));}})).setNegativeButton("Cancel",null).show();}
+        }).show();
     }
     private void showUserActions(String userId,String name) {
         io.execute(()->{try{
