@@ -19,6 +19,9 @@ once('            else if("Forward".equals(action)){showForwardTargets(msg);}',
 once('    private void showForwardTargets(JSONObject source){',
 '''    private void toggleMessagePin(String messageId){
         io.execute(()->{try{
+            JSONArray roles=SupabaseClient.getArray("/rest/v1/conversation_members?select=role&conversation_id=eq."+SupabaseClient.enc(currentConversationId)+"&user_id=eq."+SupabaseClient.enc(uid()),token());
+            String role=roles.length()>0?roles.getJSONObject(0).optString("role","member"):"member";
+            if(!role.equals("owner")&&!role.equals("deputy")&&!role.equals("admin")&&!role.equals("moderator"))throw new Exception("Only group moderators and above can pin messages.");
             String filter="/rest/v1/message_pins?select=message_id&message_id=eq."+SupabaseClient.enc(messageId);
             JSONArray found=SupabaseClient.getArray(filter,token());
             if(found.length()>0)SupabaseClient.delete("/rest/v1/message_pins?message_id=eq."+SupabaseClient.enc(messageId),token());
