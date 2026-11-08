@@ -35,6 +35,35 @@ final class SupabaseAuth {
         if (code < 200 || code >= 300) throw new Exception(result.optString("message", result.optString("msg", "Session refresh failed (" + code + ")")));
         return result;
     }
+    static JSONObject exchangeCodeForSession(String authCode, String codeVerifier) throws Exception {
+        String endpoint = "/auth/v1/token?grant_type=pkce";
+        URL url = new URL(SupabaseConfig.PROJECT_URL + endpoint);
+        HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+        connection.setRequestMethod("POST");
+        connection.setConnectTimeout(20000);
+        connection.setReadTimeout(20000);
+        connection.setDoOutput(true);
+        connection.setRequestProperty("apikey", SupabaseConfig.PUBLISHABLE_KEY);
+        connection.setRequestProperty("Content-Type", "application/json");
+        JSONObject body = new JSONObject();
+        body.put("auth_code", authCode);
+        body.put("code_verifier", codeVerifier);
+        try (OutputStream out = connection.getOutputStream()) {
+            out.write(body.toString().getBytes(StandardCharsets.UTF_8));
+        }
+        int code = connection.getResponseCode();
+        InputStream stream = code >= 200 && code < 300 ? connection.getInputStream() : connection.getErrorStream();
+        StringBuilder response = new StringBuilder();
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8))) {
+            String line; while ((line = reader.readLine()) != null) response.append(line);
+        } finally { connection.disconnect(); }
+        JSONObject result = response.length() == 0 ? new JSONObject() : new JSONObject(response.toString());
+        if (code < 200 || code >= 300) {
+            String detail = result.optString("msg", result.optString("message", result.optString("error_description", "Google sign-in exchange failed (" + code + ")")));
+            throw new Exception(detail);
+        }
+        return result;
+    }
     static JSONObject authenticate(String email, String password, boolean signUp) throws Exception {
         String endpoint = signUp ? "/auth/v1/signup" : "/auth/v1/token?grant_type=password";
         URL url = new URL(SupabaseConfig.PROJECT_URL + endpoint);
