@@ -1,0 +1,31 @@
+-- Security and indexing follow-up for Infinity Chat.
+revoke execute on function public.set_group_member_role(uuid,uuid,text) from public,anon;
+revoke execute on function public.set_group_member_restriction(uuid,uuid,text,boolean) from public,anon;
+revoke execute on function public.accept_group_invite(text) from public,anon;
+revoke execute on function public.transfer_group_ownership(uuid,uuid) from public,anon;
+grant execute on function public.set_group_member_role(uuid,uuid,text) to authenticated;
+grant execute on function public.set_group_member_restriction(uuid,uuid,text,boolean) to authenticated;
+grant execute on function public.accept_group_invite(text) to authenticated;
+grant execute on function public.transfer_group_ownership(uuid,uuid) to authenticated;
+
+create index if not exists channel_members_user_idx on public.channel_members(user_id);
+create index if not exists channel_post_reactions_user_idx on public.channel_post_reactions(user_id);
+create index if not exists channel_posts_author_idx on public.channel_posts(author_id);
+create index if not exists channels_owner_idx on public.channels(owner_id);
+create index if not exists group_invites_created_by_idx on public.group_invites(created_by);
+create index if not exists message_pins_pinned_by_idx on public.message_pins(pinned_by);
+create index if not exists message_reactions_user_idx on public.message_reactions(user_id);
+create index if not exists messages_forwarded_from_idx on public.messages(forwarded_from_message_id);
+create index if not exists messages_reply_to_idx on public.messages(reply_to_id);
+create index if not exists muted_status_users_muted_idx on public.muted_status_users(muted_user_id);
+create index if not exists poll_options_poll_idx on public.poll_options(poll_id);
+create index if not exists poll_votes_user_idx on public.poll_votes(user_id);
+create index if not exists polls_created_by_idx on public.polls(created_by);
+create index if not exists status_audience_viewer_idx on public.status_audience(viewer_id);
+create index if not exists status_views_viewer_idx on public.status_views(viewer_id);
+create index if not exists sticker_packs_creator_idx on public.sticker_packs(creator_id);
+create index if not exists stickers_pack_idx on public.stickers(pack_id);
+create index if not exists user_reports_message_idx on public.user_reports(message_id);
+create index if not exists user_reports_reported_idx on public.user_reports(reported_user_id);
+create index if not exists user_reports_reporter_idx on public.user_reports(reporter_id);
+create index if not exists user_sticker_favorites_sticker_idx on public.user_sticker_favorites(sticker_id);
