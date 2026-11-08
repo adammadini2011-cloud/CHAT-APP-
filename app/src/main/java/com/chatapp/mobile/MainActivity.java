@@ -585,7 +585,7 @@ public class MainActivity extends AppCompatActivity {
         // Fetch in the background; refresh the current chat without blocking typing.
         io.execute(()->{
             try{
-                String path="/rest/v1/messages?select=id,sender_id,body,created_at,attachment_path,attachment_type,deleted_at,edited_at,message_receipts(user_id,delivered_at,read_at)&conversation_id=eq."+SupabaseClient.enc(cid)+"&deleted_at=is.null&order=created_at.asc&limit=200";
+                String path="/rest/v1/messages?select=id,sender_id,body,created_at,attachment_path,attachment_type,deleted_at,edited_at,reply_to_id,message_receipts(user_id,delivered_at,read_at),message_reactions(emoji,user_id)&conversation_id=eq."+SupabaseClient.enc(cid)+"&deleted_at=is.null&order=created_at.asc&limit=200";
                 JSONArray rows=SupabaseClient.getArray(path,token());
                 String stamp=nowIso();
                 for(int i=0;i<rows.length();i++){
@@ -642,7 +642,7 @@ public class MainActivity extends AppCompatActivity {
                 if(!attachment.isEmpty()) bubbleWrap.setOnClickListener(v->openAttachment(attachment));
                 line.addView(bubbleWrap,new LinearLayout.LayoutParams(-2,-2));
             } else {
-                bubble.setOnLongClickListener(v->{return false;});
+                bubble.setOnLongClickListener(v->{showMessageActions(m);return true;});
                 LinearLayout receivedWrap=new LinearLayout(this);
                 receivedWrap.setOrientation(LinearLayout.VERTICAL);
                 receivedWrap.addView(bubble,new LinearLayout.LayoutParams(-2,-2));
