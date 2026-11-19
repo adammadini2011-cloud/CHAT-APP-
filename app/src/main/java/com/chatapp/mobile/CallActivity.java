@@ -514,9 +514,9 @@ public final class CallActivity extends AppCompatActivity {
 
     private void endCall(boolean sendHangup) {
         if (closed) return;
+        if (sendHangup) sendSignal("hangup", new JSONObject());
         closed = true;
         handler.removeCallbacks(signalPoll);
-        if (sendHangup) sendSignal("hangup", new JSONObject());
         io.execute(() -> {
             try {
                 JSONObject patch = new JSONObject();
