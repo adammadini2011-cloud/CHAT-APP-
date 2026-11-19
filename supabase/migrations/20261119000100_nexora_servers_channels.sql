@@ -42,9 +42,7 @@ create table if not exists public.server_channel_messages (
   content text not null check (char_length(trim(content)) between 1 and 8000),
   created_at timestamptz not null default now(),
   edited_at timestamptz,
-  deleted_at timestamptz,
-  constraint server_channel_message_channel_server_fk
-    foreign key(channel_id,server_id) references public.server_channels(id,server_id) on delete cascade
+  deleted_at timestamptz
 );
 
 create unique index if not exists server_channels_id_server_unique on public.server_channels(id,server_id);
