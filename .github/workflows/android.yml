@@ -43,13 +43,13 @@ jobs:
         if: always()
         run: |
           zip -r nexora-android-source.zip . \
-            -x ".git/*" "*/build/*" ".gradle/*" "*/.gradle/*" "infinity-chat-android-source.zip"
+            -x ".git/*" "*/build/*" ".gradle/*" "*/.gradle/*" "nexora-android-source.zip"
       - name: Upload complete Android source ZIP
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: nexora-android-source
-          path: infinity-chat-android-source.zip
+          path: nexora-android-source.zip
           if-no-files-found: error
       - name: Install and launch APK in Android emulator
         uses: reactivecircus/android-emulator-runner@v2
