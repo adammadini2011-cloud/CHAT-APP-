@@ -144,15 +144,16 @@ public final class CommunityActivity extends AppCompatActivity {
                         JSONObject s=rows.optJSONObject(n);if(s==null)continue;
                         String id=s.optString("id"),name=s.optString("name","Server");
                         boolean owner=uid().equals(s.optString("owner_id"));
+                        boolean manager=owner;
                         JSONArray members=s.optJSONArray("server_members");boolean joined=owner;
                         if(members!=null)for(int j=0;j<members.length();j++){
                             JSONObject m=members.optJSONObject(j);
-                            if(m!=null&&uid().equals(m.optString("user_id")))joined=true;
+                            if(m!=null&&uid().equals(m.optString("user_id"))){joined=true;String memberRole=m.optString("role","member");if("owner".equals(memberRole)||"admin".equals(memberRole))manager=true;}
                         }
                         Button item=button("◈  "+name+(joined?" · Joined":(s.optBoolean("is_public")?" · Public":" · Private")));
                         item.setGravity(Gravity.START|Gravity.CENTER_VERTICAL);
                         LinearLayout.LayoutParams p=full(dp(54));p.topMargin=dp(7);list.addView(item,p);
-                        item.setOnClickListener(v->openServer(id,name,owner));
+                        item.setOnClickListener(v->openServer(id,name,manager));
                     }
                 });
             }catch(Exception e){toast("Servers: "+e.getMessage());}
