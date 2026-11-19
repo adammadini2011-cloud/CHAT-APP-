@@ -34,6 +34,8 @@ final class SupabaseRealtime {
     private String conversationId = "";
     private String accessToken = "";
     private String topic = "";
+    private String tableName = "messages";
+    private String filter = "";
     private String joinRef = "1";
     private int ref = 1;
     private int retryCount = 0;
@@ -64,12 +66,22 @@ final class SupabaseRealtime {
     };
 
     void start(Context appContext, String cid, String token, Listener callback) {
+        startSubscription(appContext,cid,token,callback,"messages","conversation_id=eq."+cid,TOPIC_PREFIX+cid);
+    }
+
+    void startServerChannel(Context appContext,String channelId,String token,Listener callback) {
+        startSubscription(appContext,channelId,token,callback,"server_channel_messages","channel_id=eq."+channelId,"realtime:server-channel-"+channelId);
+    }
+
+    private void startSubscription(Context appContext,String id,String token,Listener callback,String table,String rowFilter,String channelTopic) {
         stop();
         context = appContext.getApplicationContext();
-        conversationId = cid;
+        conversationId = id;
         accessToken = token;
         listener = callback;
-        topic = TOPIC_PREFIX + cid;
+        tableName = table;
+        filter = rowFilter;
+        topic = channelTopic;
         closed = false;
         retryCount = 0;
         openSocket();
@@ -132,8 +144,8 @@ final class SupabaseRealtime {
             JSONObject change = new JSONObject();
             change.put("event", "*");
             change.put("schema", "public");
-            change.put("table", "messages");
-            change.put("filter", "conversation_id=eq." + conversationId);
+            change.put("table", tableName);
+            change.put("filter", filter);
 
             JSONArray changes = new JSONArray();
             changes.put(change);
@@ -228,5 +240,7 @@ final class SupabaseRealtime {
         conversationId = "";
         accessToken = "";
         topic = "";
+        tableName = "messages";
+        filter = "";
     }
 }
