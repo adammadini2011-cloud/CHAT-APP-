@@ -110,8 +110,9 @@ public final class CommunityActivity extends AppCompatActivity {
     // NEXORA server directory and text-channel workflow.
     private void servers(){
         base("NEXORA Servers");
-        Button create=button("Create a server");
-        body.addView(create,full(dp(46)));
+        Button create=button("Create a server"),joinInvite=button("Join with invite code");
+        body.addView(create,full(dp(46)));LinearLayout.LayoutParams jip=full(dp(44));jip.topMargin=dp(5);body.addView(joinInvite,jip);
+        joinInvite.setOnClickListener(v->{EditText code=field("Server invite code",InputType.TYPE_CLASS_TEXT);new AlertDialog.Builder(this).setTitle("Join server").setView(code).setPositiveButton("Join",(d,w)->io.execute(()->{try{JSONObject args=new JSONObject();args.put("p_invite_code",code.getText().toString().trim());SupabaseClient.request("POST","/rest/v1/rpc/accept_server_invite",token(),args,null);runOnUiThread(()->{toast("Joined server.");servers();});}catch(Exception e){toast("Invite failed: "+e.getMessage());}})).setNegativeButton("Cancel",null).show();});
         ScrollView sc=new ScrollView(this);
         body.addView(sc,new LinearLayout.LayoutParams(-1,0,1));
         LinearLayout list=new LinearLayout(this);list.setOrientation(LinearLayout.VERTICAL);sc.addView(list);
@@ -163,10 +164,16 @@ public final class CommunityActivity extends AppCompatActivity {
         TextView description=label("Server channels and community messages",12,false);
         description.setTextColor(0xFFAAB8CD);body.addView(description,full(dp(30)));
         LinearLayout actions=new LinearLayout(this);actions.setOrientation(LinearLayout.HORIZONTAL);
-        Button join=button("Join server"),create=button("Create channel");
+        Button join=button("Join server"),create=button("Create channel"),invite=button("Invite"),members=button("Members");
         actions.addView(join,new LinearLayout.LayoutParams(0,dp(44),1));
         actions.addView(create,new LinearLayout.LayoutParams(0,dp(44),1));
         body.addView(actions,full(dp(48)));create.setVisibility(owner?View.VISIBLE:View.GONE);
+        LinearLayout managerActions=new LinearLayout(this);managerActions.setOrientation(LinearLayout.HORIZONTAL);
+        managerActions.addView(invite,new LinearLayout.LayoutParams(0,dp(42),1));managerActions.addView(members,new LinearLayout.LayoutParams(0,dp(42),1));
+        LinearLayout.LayoutParams map=full(dp(46));map.topMargin=dp(4);body.addView(managerActions,map);
+        invite.setVisibility(owner?View.VISIBLE:View.GONE);members.setVisibility(owner?View.VISIBLE:View.GONE);
+        invite.setOnClickListener(v->io.execute(()->{try{JSONObject row=new JSONObject();row.put("server_id",serverId);row.put("created_by",uid());JSONArray made=SupabaseClient.post("/rest/v1/server_invites",token(),row);String code=made.getJSONObject(0).optString("invite_code");runOnUiThread(()->new AlertDialog.Builder(this).setTitle("Server invite code").setMessage(code).setPositiveButton("Copy",(d,w)->{((ClipboardManager)getSystemService(CLIPBOARD_SERVICE)).setPrimaryClip(ClipData.newPlainText("NEXORA server invite",code));toast("Invite copied.");}).setNegativeButton("Close",null).show());}catch(Exception e){toast("Invite creation failed: "+e.getMessage());}}));
+        members.setOnClickListener(v->manageServerMembers(serverId,serverName));
         ScrollView sc=new ScrollView(this);body.addView(sc,new LinearLayout.LayoutParams(-1,0,1));
         LinearLayout list=new LinearLayout(this);list.setOrientation(LinearLayout.VERTICAL);sc.addView(list);
         final boolean[] member={owner};
@@ -205,6 +212,41 @@ public final class CommunityActivity extends AppCompatActivity {
                     }catch(Exception e){toast("Channel creation failed: "+e.getMessage());}
                 })).setNegativeButton("Cancel",null).show();
         });
+    }
+
+
+    private void manageServerMembers(String serverId,String serverName){
+        base(serverName+" · Members");
+        ScrollView sc=new ScrollView(this);body.addView(sc,new LinearLayout.LayoutParams(-1,0,1));
+        LinearLayout list=new LinearLayout(this);list.setOrientation(LinearLayout.VERTICAL);sc.addView(list);
+        io.execute(()->{
+            try{
+                JSONArray rows=SupabaseClient.getArray("/rest/v1/server_members?select=user_id,role,is_muted,is_banned&server_id=eq."+enc(serverId)+"&order=joined_at.asc",token());
+                runOnUiThread(()->{
+                    list.removeAllViews();
+                    for(int n=0;n<rows.length();n++){
+                        JSONObject m=rows.optJSONObject(n);if(m==null)continue;
+                        String user=m.optString("user_id"),role=m.optString("role","member");
+                        Button item=button(user+" · "+role+(m.optBoolean("is_muted")?" · muted":"")+(m.optBoolean("is_banned")?" · banned":""));
+                        item.setGravity(Gravity.START|Gravity.CENTER_VERTICAL);LinearLayout.LayoutParams p=full(dp(48));p.topMargin=dp(5);list.addView(item,p);
+                        if(!user.equals(uid())&&!role.equals("owner"))item.setOnClickListener(v->new AlertDialog.Builder(this)
+                            .setTitle("Member controls")
+                            .setItems(new String[]{"Make admin","Make moderator","Make member","Mute / unmute","Ban / unban"},(d,w)->{
+                                if(w<3){String[] roles={"admin","moderator","member"};setServerRole(serverId,user,roles[w]);}
+                                else setServerRestriction(serverId,user,w==3?"mute":"ban",w==3?m.optBoolean("is_muted"):m.optBoolean("is_banned"));
+                            }).show());
+                    }
+                });
+            }catch(Exception e){toast("Members: "+e.getMessage());}
+        });
+    }
+
+    private void setServerRole(String serverId,String userId,String role){
+        io.execute(()->{try{JSONObject args=new JSONObject();args.put("p_server_id",serverId);args.put("p_user_id",userId);args.put("p_role",role);SupabaseClient.request("POST","/rest/v1/rpc/set_server_member_role",token(),args,null);runOnUiThread(()->{toast("Role updated.");manageServerMembers(serverId,"Server");});}catch(Exception e){toast("Role change failed: "+e.getMessage());}});
+    }
+
+    private void setServerRestriction(String serverId,String userId,String action,boolean wasEnabled){
+        io.execute(()->{try{JSONObject args=new JSONObject();args.put("p_server_id",serverId);args.put("p_user_id",userId);args.put("p_action",action);args.put("p_enabled",!wasEnabled);SupabaseClient.request("POST","/rest/v1/rpc/set_server_member_restriction",token(),args,null);runOnUiThread(()->{toast("Member restriction updated.");manageServerMembers(serverId,"Server");});}catch(Exception e){toast("Moderation failed: "+e.getMessage());}});
     }
 
     private void loadServerChannels(String serverId,String serverName,LinearLayout list){
