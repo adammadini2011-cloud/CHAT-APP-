@@ -42,13 +42,14 @@ jobs:
       - name: Package complete Android source ZIP
         if: always()
         run: |
-          zip -r nexora-android-source.zip app .github scripts supabase README.md NEXORA_ANDROID_PLAN_AR.md GOOGLE_LOGIN_SETUP_AR.md build.gradle settings.gradle gradle.properties
+          zip -r /tmp/nexora-android-source.zip app .github scripts supabase README.md NEXORA_ANDROID_PLAN_AR.md GOOGLE_LOGIN_SETUP_AR.md build.gradle settings.gradle gradle.properties \
+            -x "app/build/*" "*/build/*" "build/*" "*/.gradle/*" ".gradle/*"
       - name: Upload complete Android source ZIP
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: nexora-android-source
-          path: nexora-android-source.zip
+          path: /tmp/nexora-android-source.zip
           if-no-files-found: error
       - name: Install and launch APK in Android emulator
         uses: reactivecircus/android-emulator-runner@v2
