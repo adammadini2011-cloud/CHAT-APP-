@@ -73,6 +73,10 @@ final class SupabaseRealtime {
         startSubscription(appContext,channelId,token,callback,"server_channel_messages","channel_id=eq."+channelId,"realtime:server-channel-"+channelId);
     }
 
+    void startCallSignals(Context appContext,String callId,String token,Listener callback) {
+        startSubscription(appContext,callId,token,callback,"call_signals","call_id=eq."+callId,"realtime:call-"+callId);
+    }
+
     private void startSubscription(Context appContext,String id,String token,Listener callback,String table,String rowFilter,String channelTopic) {
         stop();
         context = appContext.getApplicationContext();
