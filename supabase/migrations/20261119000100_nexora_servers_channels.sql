@@ -173,7 +173,14 @@ using (private.is_server_manager(server_id));
 drop policy if exists "Members read channel messages" on public.server_channel_messages;
 create policy "Members read channel messages"
 on public.server_channel_messages for select to authenticated
-using (private.is_active_server_member(server_id));
+using (
+  private.is_active_server_member(server_id)
+  and exists (
+    select 1 from public.server_channels c
+    where c.id=server_channel_messages.channel_id
+      and c.server_id=server_channel_messages.server_id
+  )
+);
 
 drop policy if exists "Unmuted members send channel messages" on public.server_channel_messages;
 create policy "Unmuted members send channel messages"
@@ -183,20 +190,38 @@ with check (
   and private.is_active_server_member(server_id)
   and exists (
     select 1 from public.server_members sm
-    where sm.server_id=server_id and sm.user_id=(select auth.uid())
+    where sm.server_id=server_channel_messages.server_id
+      and sm.user_id=(select auth.uid())
       and sm.is_muted=false and sm.is_banned=false
   )
   and exists (
     select 1 from public.server_channels c
-    where c.id=channel_id and c.server_id=server_id
+    where c.id=server_channel_messages.channel_id
+      and c.server_id=server_channel_messages.server_id
   )
 );
 
 drop policy if exists "Authors edit own channel messages" on public.server_channel_messages;
 create policy "Authors edit own channel messages"
 on public.server_channel_messages for update to authenticated
-using (author_id=(select auth.uid()) and private.is_active_server_member(server_id))
-with check (author_id=(select auth.uid()) and private.is_active_server_member(server_id));
+using (
+  author_id=(select auth.uid())
+  and private.is_active_server_member(server_id)
+  and exists (
+    select 1 from public.server_channels c
+    where c.id=server_channel_messages.channel_id
+      and c.server_id=server_channel_messages.server_id
+  )
+)
+with check (
+  author_id=(select auth.uid())
+  and private.is_active_server_member(server_id)
+  and exists (
+    select 1 from public.server_channels c
+    where c.id=server_channel_messages.channel_id
+      and c.server_id=server_channel_messages.server_id
+  )
+);
 
 drop policy if exists "Authors or managers delete channel messages" on public.server_channel_messages;
 create policy "Authors or managers delete channel messages"
