@@ -33,6 +33,8 @@ public final class CommunityActivity extends AppCompatActivity {
     private final Handler handler = new Handler(Looper.getMainLooper());
     private Runnable channelPoll;
     private String activeServerChannelId = "";
+    private Runnable activeChannelRefresh;
+    private SupabaseRealtime serverRealtime;
     private LinearLayout root, body;
     private String currentChannelId = "", currentChannelName = "", currentGroupId = "";
     private boolean currentChannelOwner = false;
@@ -62,7 +64,8 @@ public final class CommunityActivity extends AppCompatActivity {
     private LinearLayout.LayoutParams full(int h){return new LinearLayout.LayoutParams(-1,h);}
     private void base(String title){
         if(channelPoll!=null)handler.removeCallbacks(channelPoll);
-        channelPoll=null;activeServerChannelId="";
+        if(serverRealtime!=null){serverRealtime.stop();serverRealtime=null;}
+        channelPoll=null;activeServerChannelId="";activeChannelRefresh=null;
         root=new LinearLayout(this);root.setOrientation(LinearLayout.VERTICAL);root.setPadding(dp(16),dp(12),dp(16),dp(12));root.setBackgroundColor(0xFF0B1423);setContentView(root);
         LinearLayout bar=new LinearLayout(this);bar.setGravity(Gravity.CENTER_VERTICAL);TextView heading=label(title,20,true);bar.addView(heading,new LinearLayout.LayoutParams(0,-2,1));
         Button back=button("Back");bar.addView(back, new LinearLayout.LayoutParams(dp(82),dp(42)));back.setOnClickListener(v->home());
@@ -83,8 +86,21 @@ public final class CommunityActivity extends AppCompatActivity {
     }
     @Override protected void onCreate(Bundle b){super.onCreate(b);if(uid().isEmpty()){finish();return;}home();}
 
-    @Override protected void onPause(){if(channelPoll!=null)handler.removeCallbacks(channelPoll);super.onPause();}
-    @Override protected void onResume(){super.onResume();if(channelPoll!=null)handler.postDelayed(channelPoll,1500L);}
+    private void startServerRealtime(){
+        if(activeServerChannelId.isEmpty()||isFinishing())return;
+        if(serverRealtime!=null)serverRealtime.stop();
+        serverRealtime=new SupabaseRealtime();
+        String channelId=activeServerChannelId;
+        serverRealtime.startServerChannel(this,channelId,token(),new SupabaseRealtime.Listener(){
+            @Override public void onMessageChange(){
+                if(channelId.equals(activeServerChannelId)&&activeChannelRefresh!=null)activeChannelRefresh.run();
+            }
+            @Override public void onState(boolean connected,String detail){}
+        });
+    }
+
+    @Override protected void onPause(){if(channelPoll!=null)handler.removeCallbacks(channelPoll);if(serverRealtime!=null)serverRealtime.stop();super.onPause();}
+    @Override protected void onResume(){super.onResume();if(!activeServerChannelId.isEmpty())startServerRealtime();if(channelPoll!=null)handler.postDelayed(channelPoll,1500L);}
     private void statuses(){
         base("Statuses");
         EditText text=field("Write a text status…",InputType.TYPE_CLASS_TEXT|InputType.TYPE_TEXT_FLAG_MULTI_LINE);body.addView(text,full(dp(64)));
@@ -313,7 +329,9 @@ public final class CommunityActivity extends AppCompatActivity {
             }catch(Exception e){toast("Messages: "+e.getMessage());}
         });
         activeServerChannelId=channelId;
+        activeChannelRefresh=refresh;
         channelPoll=new Runnable(){@Override public void run(){if(activeServerChannelId.equals(channelId)&&!isFinishing()){refresh.run();handler.postDelayed(this,5000L);}}};
+        startServerRealtime();
         refresh.run();handler.postDelayed(channelPoll,5000L);
         send.setOnClickListener(v->{
             String value=input.getText().toString().trim();if(value.isEmpty())return;
