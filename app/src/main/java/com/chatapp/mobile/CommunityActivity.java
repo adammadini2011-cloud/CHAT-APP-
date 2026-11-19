@@ -250,7 +250,7 @@ public final class CommunityActivity extends AppCompatActivity {
                         LinearLayout.LayoutParams p=full(-2);p.topMargin=dp(5);messages.addView(line,p);
                         if(author.equals(uid()))line.setOnLongClickListener(v->{
                             new AlertDialog.Builder(this).setItems(new String[]{"Delete message"},(d,w)->io.execute(()->{
-                                try{JSONObject patch=new JSONObject();patch.put("deleted_at",new java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX",Locale.US).format(new java.util.Date()));SupabaseClient.request("PATCH","/rest/v1/server_channel_messages?id=eq."+enc(messageId),token(),patch,null);runOnUiThread(refresh);}
+                                try{JSONObject patch=new JSONObject();patch.put("deleted_at",new java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX",Locale.US).format(new java.util.Date()));SupabaseClient.request("PATCH","/rest/v1/server_channel_messages?id=eq."+enc(messageId),token(),patch,null);runOnUiThread(()->toast("Message deleted."));}
                                 catch(Exception e){toast("Delete failed: "+e.getMessage());}
                             })).show();return true;
                         });
