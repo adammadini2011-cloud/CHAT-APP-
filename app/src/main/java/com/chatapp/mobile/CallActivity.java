@@ -86,6 +86,21 @@ public final class CallActivity extends AppCompatActivity {
     private VideoCapturer activeCapturer;
     private MediaProjectionManager projectionManager;
     private final List<String> seenSignals = new ArrayList<>();
+    private final List<IceCandidate> pendingIce = new ArrayList<>();
+    private boolean remoteDescriptionSet = false;
+    private final Runnable callTimeout = () -> {
+        if (!caller || closed) return;
+        io.execute(() -> {
+            try {
+                JSONArray rows=SupabaseClient.getArray("/rest/v1/call_sessions?select=status&id=eq."+SupabaseClient.enc(callId),token);
+                if(rows.length()>0 && "ringing".equals(rows.getJSONObject(0).optString("status"))){
+                    JSONObject patch=new JSONObject();patch.put("status","missed");patch.put("ended_at",nowIso());
+                    SupabaseClient.request("PATCH","/rest/v1/call_sessions?id=eq."+SupabaseClient.enc(callId),token,patch,null);
+                    runOnUiThread(()->{toast("No answer.");endCall(false);});
+                }
+            } catch(Exception ignored) {}
+        });
+    };
 
     private int dp(float value) {
         return (int)(value * getResources().getDisplayMetrics().density + 0.5f);
@@ -282,7 +297,7 @@ public final class CallActivity extends AppCompatActivity {
             speakerEnabled = videoCall;
             speakerButton.setText(speakerEnabled ? "Speaker on" : "Speaker");
             status.setText(caller ? "Calling…" : "Waiting for caller…");
-            if (caller) createOffer();
+            if (caller) { createOffer(); handler.postDelayed(callTimeout, 45000L); }
             handler.post(signalPoll);
         } catch (Exception e) {
             toast("Could not start WebRTC: " + e.getMessage());
@@ -419,6 +434,7 @@ public final class CallActivity extends AppCompatActivity {
                         );
                         if (sessions.length()>0) {
                             String state=sessions.getJSONObject(0).optString("status");
+                            if ("accepted".equals(state)) handler.removeCallbacks(callTimeout);
                             if ("rejected".equals(state)||"ended".equals(state)||"missed".equals(state))
                                 runOnUiThread(()->endCall(false));
                         }
@@ -442,7 +458,7 @@ public final class CallActivity extends AppCompatActivity {
                 );
                 peer.setRemoteDescription(new SdpObserver() {
                     @Override public void onCreateSuccess(SessionDescription sdp) {}
-                    @Override public void onSetSuccess() { createAnswer(); }
+                    @Override public void onSetSuccess() { remoteDescriptionSet=true; applyPendingIce(); createAnswer(); }
                     @Override public void onCreateFailure(String error) {}
                     @Override public void onSetFailure(String error) { toast("Offer rejected: " + error); }
                 }, offer);
@@ -450,7 +466,12 @@ public final class CallActivity extends AppCompatActivity {
                 SessionDescription answer = new SessionDescription(
                     SessionDescription.Type.ANSWER, payload.optString("sdp")
                 );
-                peer.setRemoteDescription(new SimpleSdpObserver(), answer);
+                peer.setRemoteDescription(new SdpObserver() {
+                    @Override public void onCreateSuccess(SessionDescription sdp) {}
+                    @Override public void onSetSuccess() { remoteDescriptionSet=true; applyPendingIce(); }
+                    @Override public void onCreateFailure(String error) {}
+                    @Override public void onSetFailure(String error) { toast("Answer rejected: " + error); }
+                }, answer);
                 runOnUiThread(() -> status.setText("Connecting…"));
             } else if ("ice".equals(type)) {
                 IceCandidate candidate = new IceCandidate(
@@ -458,13 +479,20 @@ public final class CallActivity extends AppCompatActivity {
                     payload.optInt("sdpMLineIndex"),
                     payload.optString("sdp")
                 );
-                peer.addIceCandidate(candidate);
+                if (remoteDescriptionSet) peer.addIceCandidate(candidate);
+                else pendingIce.add(candidate);
             } else if ("hangup".equals(type)) {
                 runOnUiThread(() -> endCall(false));
             }
         } catch (Exception e) {
             toast("Could not process call signal: " + e.getMessage());
         }
+    }
+
+    private void applyPendingIce() {
+        if (peer == null || !remoteDescriptionSet || pendingIce.isEmpty()) return;
+        for (IceCandidate candidate : new ArrayList<>(pendingIce)) peer.addIceCandidate(candidate);
+        pendingIce.clear();
     }
 
     private void toggleMute() {
@@ -523,6 +551,7 @@ public final class CallActivity extends AppCompatActivity {
         if (sendHangup) sendSignal("hangup", new JSONObject());
         closed = true;
         handler.removeCallbacks(signalPoll);
+        handler.removeCallbacks(callTimeout);
         io.execute(() -> {
             try {
                 JSONObject patch = new JSONObject();
@@ -561,6 +590,7 @@ public final class CallActivity extends AppCompatActivity {
         if (!closed) {
             closed = true;
             handler.removeCallbacks(signalPoll);
+            handler.removeCallbacks(callTimeout);
             releaseMedia();
         }
         io.shutdown();
