@@ -42,8 +42,7 @@ jobs:
       - name: Package complete Android source ZIP
         if: always()
         run: |
-          zip -r nexora-android-source.zip . \
-            -x ".git/*" "*/build/*" ".gradle/*" "*/.gradle/*" "nexora-android-source.zip"
+          zip -r nexora-android-source.zip app .github scripts supabase README.md NEXORA_ANDROID_PLAN_AR.md GOOGLE_LOGIN_SETUP_AR.md build.gradle settings.gradle gradle.properties
       - name: Upload complete Android source ZIP
         if: always()
         uses: actions/upload-artifact@v4
