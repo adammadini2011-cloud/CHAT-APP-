@@ -153,7 +153,8 @@ public final class CommunityActivity extends AppCompatActivity {
                         Button item=button("◈  "+name+(joined?" · Joined":(s.optBoolean("is_public")?" · Public":" · Private")));
                         item.setGravity(Gravity.START|Gravity.CENTER_VERTICAL);
                         LinearLayout.LayoutParams p=full(dp(54));p.topMargin=dp(7);list.addView(item,p);
-                        item.setOnClickListener(v->openServer(id,name,manager));
+                        final boolean canManage=manager;
+                        item.setOnClickListener(v->openServer(id,name,canManage));
                     }
                 });
             }catch(Exception e){toast("Servers: "+e.getMessage());}
