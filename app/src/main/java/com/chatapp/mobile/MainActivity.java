@@ -63,6 +63,8 @@ public class MainActivity extends AppCompatActivity {
     private final Runnable presenceHeartbeat = new Runnable(){@Override public void run(){if(!isFinishing()){setPresence(true);handler.postDelayed(this,60000L);}}};
     private boolean inChat = false;
     private String pendingReplyId = "";
+    private String incomingPromptId = "";
+    private final Runnable incomingCallPoll = new Runnable(){@Override public void run(){if(activityStarted&&!isFinishing()){checkIncomingCall();handler.postDelayed(this,3500L);}}};
     private final Runnable refreshRunnable = new Runnable() {
         @Override public void run() {
             if (inChat && activityStarted && !isFinishing()) loadMessages(false);
@@ -114,6 +116,11 @@ public class MainActivity extends AppCompatActivity {
             case "Cancel":return "إلغاء";
             case "Language: English":return "اللغة: العربية";
             case "Someone is typing…":return "يكتب الآن…";
+            case "Voice call":return "مكالمة صوتية";
+            case "Video call":return "مكالمة فيديو";
+            case "Incoming call":return "مكالمة واردة";
+            case "Accept":return "قبول";
+            case "Decline":return "رفض";
             default:return s;
         }
     }
@@ -556,6 +563,15 @@ public class MainActivity extends AppCompatActivity {
     private void openChat(ChatItem item) {
         currentConversationId=item.id; currentConversationTitle=item.title; inChat=true;
         base(item.title,item.group?"Manage":"Back",v->{if(item.group){setTypingStatus(currentConversationId,false);showGroupManagement();}else{setTypingStatus(currentConversationId,false);inChat=false;handler.removeCallbacks(refreshRunnable);showHome();}});
+        if(!item.group){
+            LinearLayout callBar=new LinearLayout(this);callBar.setGravity(Gravity.CENTER);callBar.setOrientation(LinearLayout.HORIZONTAL);
+            Button voiceCall=button("Voice call"),videoCall=button("Video call");
+            callBar.addView(voiceCall,new LinearLayout.LayoutParams(0,dp(44),1));
+            callBar.addView(videoCall,new LinearLayout.LayoutParams(0,dp(44),1));
+            content.addView(callBar,match(dp(48)));
+            voiceCall.setOnClickListener(v->startCall(item,"audio"));
+            videoCall.setOnClickListener(v->startCall(item,"video"));
+        }
         ScrollView sc=new ScrollView(this); sc.setFillViewport(false); content.addView(sc,new LinearLayout.LayoutParams(-1,0,1));
         typingIndicator=text("",12,0xFF35C7A5,false);content.addView(typingIndicator,match(dp(24)));
         LinearLayout messages=new LinearLayout(this); messages.setOrientation(LinearLayout.VERTICAL); sc.addView(messages);
@@ -579,6 +595,80 @@ public class MainActivity extends AppCompatActivity {
         startRealtime(item.id);
         loadMessages(true); handler.removeCallbacks(refreshRunnable); handler.postDelayed(refreshRunnable,5000);
     }
+
+    private void startCall(ChatItem item,String callType){
+        if(item.group){message("Group calls are not enabled yet.");return;}
+        message("Starting "+("video".equals(callType)?"video":"voice")+" call…");
+        io.execute(()->{
+            try{
+                JSONArray members=SupabaseClient.getArray(
+                    "/rest/v1/conversation_members?select=user_id&conversation_id=eq."+SupabaseClient.enc(item.id)
+                    +"&user_id=neq."+SupabaseClient.enc(uid())+"&is_banned=eq.false",token());
+                if(members.length()==0)throw new Exception("The other participant is unavailable.");
+                String callee=members.getJSONObject(0).optString("user_id");
+                JSONObject row=new JSONObject();row.put("conversation_id",item.id);row.put("caller_id",uid());
+                row.put("callee_id",callee);row.put("call_type",callType);row.put("status","ringing");
+                JSONArray created=SupabaseClient.post("/rest/v1/call_sessions",token(),row);
+                String id=created.getJSONObject(0).optString("id");
+                runOnUiThread(()->{
+                    Intent intent=new Intent(this,CallActivity.class);
+                    intent.putExtra("call_id",id);intent.putExtra("caller",true);intent.putExtra("call_type",callType);
+                    startActivity(intent);
+                });
+            }catch(Exception e){runOnUiThread(()->message("Could not start call: "+e.getMessage()));}
+        });
+    }
+
+    private void checkIncomingCall(){
+        if(ChatSession.token(this).isEmpty())return;
+        io.execute(()->{
+            try{
+                JSONArray rows=SupabaseClient.getArray(
+                    "/rest/v1/call_sessions?select=id,conversation_id,caller_id,call_type&callee_id=eq."
+                    +SupabaseClient.enc(uid())+"&status=eq.ringing&order=created_at.asc&limit=1",token());
+                if(rows.length()==0)return;
+                JSONObject call=rows.getJSONObject(0);
+                String id=call.optString("id");
+                if(id.isEmpty()||id.equals(incomingPromptId))return;
+                incomingPromptId=id;
+                String callerId=call.optString("caller_id"),callType=call.optString("call_type","audio");
+                String display="NEXORA user";
+                try{
+                    JSONArray profiles=SupabaseClient.getArray("/rest/v1/profiles?select=display_name,username&id=eq."
+                        +SupabaseClient.enc(callerId)+"&limit=1",token());
+                    if(profiles.length()>0){JSONObject p=profiles.getJSONObject(0);display=p.optString("display_name",p.optString("username",display));}
+                }catch(Exception ignored){}
+                String callerName=display;
+                runOnUiThread(()->{
+                    if(isFinishing()||isDestroyed())return;
+                    new AlertDialog.Builder(this)
+                        .setTitle(tr("Incoming call"))
+                        .setMessage(callerName+" · "+("video".equals(callType)?tr("Video call"):tr("Voice call")))
+                        .setPositiveButton(tr("Accept"),(d,w)->respondToIncomingCall(id,callType,true))
+                        .setNegativeButton(tr("Decline"),(d,w)->respondToIncomingCall(id,callType,false))
+                        .setOnCancelListener(d->respondToIncomingCall(id,callType,false))
+                        .show();
+                });
+            }catch(Exception ignored){}
+        });
+    }
+
+    private void respondToIncomingCall(String callId,String callType,boolean accept){
+        incomingPromptId="";
+        io.execute(()->{
+            try{
+                JSONObject patch=new JSONObject();patch.put("status",accept?"accepted":"rejected");
+                patch.put(accept?"accepted_at":"ended_at",nowIso());
+                SupabaseClient.request("PATCH","/rest/v1/call_sessions?id=eq."+SupabaseClient.enc(callId),token(),patch,null);
+                if(accept)runOnUiThread(()->{
+                    Intent intent=new Intent(this,CallActivity.class);
+                    intent.putExtra("call_id",callId);intent.putExtra("caller",false);intent.putExtra("call_type",callType);
+                    startActivity(intent);
+                });
+            }catch(Exception e){runOnUiThread(()->message("Call response failed: "+e.getMessage()));}
+        });
+    }
+
     private void loadMessages(boolean showLoading) {
         final String cid=currentConversationId;
         if(cid.isEmpty())return;
@@ -887,7 +977,7 @@ public class MainActivity extends AppCompatActivity {
         }catch(Exception ignored){}});
     }
     @Override protected void onNewIntent(Intent intent){super.onNewIntent(intent);setIntent(intent);if(handleAuthRedirect(intent))return;}
-    @Override protected void onStart(){super.onStart();activityStarted=true;setPresence(true);handler.removeCallbacks(presenceHeartbeat);handler.postDelayed(presenceHeartbeat,60000L);if(inChat&&!currentConversationId.isEmpty()){startRealtime(currentConversationId);handler.removeCallbacks(refreshRunnable);handler.postDelayed(refreshRunnable,5000);}}
-    @Override protected void onStop(){activityStarted=false;handler.removeCallbacks(presenceHeartbeat);if(inChat&&!currentConversationId.isEmpty())setTypingStatus(currentConversationId,false);stopRealtime();setPresence(false);super.onStop();}
+    @Override protected void onStart(){super.onStart();activityStarted=true;setPresence(true);handler.removeCallbacks(presenceHeartbeat);handler.postDelayed(presenceHeartbeat,60000L);handler.removeCallbacks(incomingCallPoll);handler.postDelayed(incomingCallPoll,1500L);if(inChat&&!currentConversationId.isEmpty()){startRealtime(currentConversationId);handler.removeCallbacks(refreshRunnable);handler.postDelayed(refreshRunnable,5000);}}
+    @Override protected void onStop(){activityStarted=false;handler.removeCallbacks(presenceHeartbeat);handler.removeCallbacks(incomingCallPoll);if(inChat&&!currentConversationId.isEmpty())setTypingStatus(currentConversationId,false);stopRealtime();setPresence(false);super.onStop();}
     @Override protected void onDestroy(){stopRealtime();handler.removeCallbacks(refreshRunnable);io.shutdown();super.onDestroy();}
 }
