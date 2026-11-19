@@ -280,7 +280,7 @@ begin
     where server_id=p_server_id and user_id=(select auth.uid()) and not is_banned;
   select role into target_role from public.server_members
     where server_id=p_server_id and user_id=p_user_id;
-  if actor_role not in ('owner','admin') or target_role is null or target_role='owner'
+  if actor_role is null or actor_role not in ('owner','admin') or target_role is null or target_role='owner'
     or p_user_id=(select auth.uid()) then raise exception 'Insufficient permissions or invalid target'; end if;
   if actor_role='admin' and (target_role='admin' or p_role='admin') then
     raise exception 'Only the owner can assign or modify admins';
