@@ -9,6 +9,8 @@ import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.text.InputType;
 import android.view.Gravity;
 import android.view.View;
@@ -28,6 +30,9 @@ import java.util.concurrent.Executors;
 
 public final class CommunityActivity extends AppCompatActivity {
     private final ExecutorService io = Executors.newSingleThreadExecutor();
+    private final Handler handler = new Handler(Looper.getMainLooper());
+    private Runnable channelPoll;
+    private String activeServerChannelId = "";
     private LinearLayout root, body;
     private String currentChannelId = "", currentChannelName = "", currentGroupId = "";
     private boolean currentChannelOwner = false;
@@ -56,6 +61,8 @@ public final class CommunityActivity extends AppCompatActivity {
     }
     private LinearLayout.LayoutParams full(int h){return new LinearLayout.LayoutParams(-1,h);}
     private void base(String title){
+        if(channelPoll!=null)handler.removeCallbacks(channelPoll);
+        channelPoll=null;activeServerChannelId="";
         root=new LinearLayout(this);root.setOrientation(LinearLayout.VERTICAL);root.setPadding(dp(16),dp(12),dp(16),dp(12));root.setBackgroundColor(0xFF0B1423);setContentView(root);
         LinearLayout bar=new LinearLayout(this);bar.setGravity(Gravity.CENTER_VERTICAL);TextView heading=label(title,20,true);bar.addView(heading,new LinearLayout.LayoutParams(0,-2,1));
         Button back=button("Back");bar.addView(back, new LinearLayout.LayoutParams(dp(82),dp(42)));back.setOnClickListener(v->home());
@@ -75,6 +82,10 @@ public final class CommunityActivity extends AppCompatActivity {
         TextView t=label(sub,12,false);t.setTextColor(0xFFAAB8CD);LinearLayout.LayoutParams q=full(dp(34));q.leftMargin=dp(8);body.addView(t,q);b.setOnClickListener(v->action.run());
     }
     @Override protected void onCreate(Bundle b){super.onCreate(b);if(uid().isEmpty()){finish();return;}home();}
+
+    @Override protected void onPause(){if(channelPoll!=null)handler.removeCallbacks(channelPoll);super.onPause();}
+    @Override protected void onResume(){super.onResume();if(channelPoll!=null)handler.postDelayed(channelPoll,1500L);}
+    @Override protected void onDestroy(){if(channelPoll!=null)handler.removeCallbacks(channelPoll);io.shutdown();super.onDestroy();}
 
     private void statuses(){
         base("Statuses");
@@ -303,7 +314,9 @@ public final class CommunityActivity extends AppCompatActivity {
                 });
             }catch(Exception e){toast("Messages: "+e.getMessage());}
         });
-        refresh.run();
+        activeServerChannelId=channelId;
+        channelPoll=new Runnable(){@Override public void run(){if(activeServerChannelId.equals(channelId)&&!isFinishing()){refresh.run();handler.postDelayed(this,5000L);}}};
+        refresh.run();handler.postDelayed(channelPoll,5000L);
         send.setOnClickListener(v->{
             String value=input.getText().toString().trim();if(value.isEmpty())return;
             send.setEnabled(false);
