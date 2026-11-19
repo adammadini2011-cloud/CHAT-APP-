@@ -52,14 +52,16 @@ jobs:
           path: /tmp/nexora-android-source.zip
           if-no-files-found: error
       - name: Install and launch APK in Android emulator
-        timeout-minutes: 5
+        timeout-minutes: 7
+        env:
+          ANDROID_I_WANT_MY_TCG: "yes"
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 35
           target: google_apis
           arch: x86_64
           profile: pixel_2
-          emulator-boot-timeout: 180
+          emulator-boot-timeout: 300
           disable-animations: true
           script: |
             adb install app/build/outputs/apk/debug/app-debug.apk
