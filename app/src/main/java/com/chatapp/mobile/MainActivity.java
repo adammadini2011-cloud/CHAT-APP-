@@ -181,12 +181,12 @@ public class MainActivity extends AppCompatActivity {
         if (token.isEmpty()) showAuth(); else showHome();
     }
     private void showAuth() {
-        inChat=false; base("Infinity Chat","",null);
+        inChat=false; base("NEXORA","",null);
         content.setGravity(Gravity.CENTER_HORIZONTAL);
         content.setPadding(dp(24),dp(28),dp(24),dp(18));
         TextView brand=text("∞",58,0xFF21D8FF,true); brand.setGravity(Gravity.CENTER);
         content.addView(brand,match(dp(70)));
-        TextView title=text("Infinity Chat",29,Color.WHITE,true); title.setGravity(Gravity.CENTER);
+        TextView title=text("NEXORA",29,Color.WHITE,true); title.setGravity(Gravity.CENTER);
         content.addView(title);
         TextView sub=text("Your conversations, connected.",14,0xFFB8C5E8,false); sub.setGravity(Gravity.CENTER);
         LinearLayout.LayoutParams sp=match(dp(42)); sp.bottomMargin=dp(18); content.addView(sub,sp);
