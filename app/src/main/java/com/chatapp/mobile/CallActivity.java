@@ -135,13 +135,13 @@ public final class CallActivity extends AppCompatActivity {
     private void buildUi() {
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
-        root.setBackgroundColor(0xFF081321);
+        root.setBackgroundColor(0xFF0B0D16);
         FrameLayout stage = new FrameLayout(this);
         root.addView(stage, new LinearLayout.LayoutParams(-1, 0, 1));
 
         status = new TextView(this);
         status.setText(caller ? "Calling…" : "Connecting…");
-        status.setTextColor(0xFFEAF3FF);
+        status.setTextColor(0xFFF6F5FB);
         status.setTextSize(18);
         status.setGravity(Gravity.CENTER);
         FrameLayout.LayoutParams statusParams = new FrameLayout.LayoutParams(-1, dp(64), Gravity.CENTER);
@@ -191,7 +191,7 @@ public final class CallActivity extends AppCompatActivity {
         b.setTextColor(0xFFFFFFFF);
         b.setPadding(dp(2), 0, dp(2), 0);
         b.setBackgroundTintList(android.content.res.ColorStateList.valueOf(
-            "End call".equals(label) ? 0xFFC63858 : 0xFF1D3854
+            "End call".equals(label) ? 0xFFC63858 : 0xFF20263A
         ));
         return b;
     }
