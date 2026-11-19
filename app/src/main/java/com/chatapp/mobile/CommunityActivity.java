@@ -62,9 +62,10 @@ public final class CommunityActivity extends AppCompatActivity {
         root.addView(bar,full(dp(52)));body=new LinearLayout(this);body.setOrientation(LinearLayout.VERTICAL);root.addView(body,new LinearLayout.LayoutParams(-1,0,1));
     }
     private void home(){
-        base("Infinity Chat · Community");
+        base("NEXORA · Community");
         addNav("Statuses","Share a photo, video or text that expires after 24 hours",this::statuses);
         addNav("Channels","Discover, follow and publish channel updates",this::channels);
+        addNav("Servers","Create communities with text channels",this::servers);
         addNav("Groups","Manage members, roles, invites and polls",this::groups);
         addNav("Privacy","Control last-seen, photo and status visibility",this::privacy);
         addNav("Join a group","Enter an invite code",this::joinGroup);
@@ -103,6 +104,173 @@ public final class CommunityActivity extends AppCompatActivity {
         follow.setOnClickListener(v->{if(own)return;io.execute(()->{try{JSONArray old=SupabaseClient.getArray("/rest/v1/channel_members?select=role&channel_id=eq."+enc(id)+"&user_id=eq."+enc(uid()),token());if(old.length()>0)SupabaseClient.delete("/rest/v1/channel_members?channel_id=eq."+enc(id)+"&user_id=eq."+enc(uid()),token());else{JSONObject r=new JSONObject();r.put("channel_id",id);r.put("user_id",uid());r.put("role","follower");SupabaseClient.post("/rest/v1/channel_members",token(),r);}runOnUiThread(()->openChannel(id,name,false));}catch(Exception e){toast("Follow action failed: "+e.getMessage());}});});
         ScrollView sc=new ScrollView(this);body.addView(sc,new LinearLayout.LayoutParams(-1,0,1));LinearLayout list=new LinearLayout(this);list.setOrientation(LinearLayout.VERTICAL);sc.addView(list);
         io.execute(()->{try{JSONArray rows=SupabaseClient.getArray("/rest/v1/channel_posts?select=id,body,created_at,channel_post_reactions(emoji,user_id)&channel_id=eq."+enc(id)+"&order=created_at.desc&limit=100",token());runOnUiThread(()->{list.removeAllViews();for(int n=0;n<rows.length();n++){JSONObject r=rows.optJSONObject(n);if(r==null)continue;TextView t=label(r.optString("body",""),15,false);t.setPadding(dp(12),dp(12),dp(12),dp(12));GradientDrawable bg=new GradientDrawable();bg.setColor(0xFF1D3049);bg.setCornerRadius(dp(14));t.setBackground(bg);LinearLayout.LayoutParams p=full(-2);p.topMargin=dp(6);list.addView(t,p);}});}catch(Exception e){toast("Posts: "+e.getMessage());}});
+    }
+
+
+    // NEXORA server directory and text-channel workflow.
+    private void servers(){
+        base("NEXORA Servers");
+        Button create=button("Create a server");
+        body.addView(create,full(dp(46)));
+        ScrollView sc=new ScrollView(this);
+        body.addView(sc,new LinearLayout.LayoutParams(-1,0,1));
+        LinearLayout list=new LinearLayout(this);list.setOrientation(LinearLayout.VERTICAL);sc.addView(list);
+        create.setOnClickListener(v->{
+            LinearLayout box=new LinearLayout(this);box.setOrientation(LinearLayout.VERTICAL);
+            EditText name=field("Server name",InputType.TYPE_CLASS_TEXT);
+            EditText description=field("Description",InputType.TYPE_CLASS_TEXT|InputType.TYPE_TEXT_FLAG_MULTI_LINE);
+            box.addView(name,full(dp(52)));box.addView(description,full(dp(68)));
+            new AlertDialog.Builder(this).setTitle("Create a server").setView(box)
+                .setPositiveButton("Create",(d,w)->io.execute(()->{
+                    try{
+                        String serverName=name.getText().toString().trim();
+                        if(serverName.length()<2)throw new Exception("Server name must contain at least 2 characters.");
+                        JSONObject row=new JSONObject();row.put("owner_id",uid());row.put("name",serverName);
+                        row.put("description",description.getText().toString().trim());row.put("is_public",true);
+                        JSONArray made=SupabaseClient.post("/rest/v1/servers",token(),row);
+                        String id=made.getJSONObject(0).getString("id");
+                        runOnUiThread(()->openServer(id,serverName,true));
+                    }catch(Exception e){toast("Server creation failed: "+e.getMessage());}
+                })).setNegativeButton("Cancel",null).show();
+        });
+        io.execute(()->{
+            try{
+                JSONArray rows=SupabaseClient.getArray("/rest/v1/servers?select=id,name,description,owner_id,is_public,server_members(user_id,role)&order=created_at.desc&limit=100",token());
+                runOnUiThread(()->{
+                    list.removeAllViews();
+                    if(rows.length()==0)list.addView(label("No servers yet. Create the first one.",14,false));
+                    for(int n=0;n<rows.length();n++){
+                        JSONObject s=rows.optJSONObject(n);if(s==null)continue;
+                        String id=s.optString("id"),name=s.optString("name","Server");
+                        boolean owner=uid().equals(s.optString("owner_id"));
+                        JSONArray members=s.optJSONArray("server_members");boolean joined=owner;
+                        if(members!=null)for(int j=0;j<members.length();j++){
+                            JSONObject m=members.optJSONObject(j);
+                            if(m!=null&&uid().equals(m.optString("user_id")))joined=true;
+                        }
+                        Button item=button("◈  "+name+(joined?" · Joined":(s.optBoolean("is_public")?" · Public":" · Private")));
+                        item.setGravity(Gravity.START|Gravity.CENTER_VERTICAL);
+                        LinearLayout.LayoutParams p=full(dp(54));p.topMargin=dp(7);list.addView(item,p);
+                        item.setOnClickListener(v->openServer(id,name,owner));
+                    }
+                });
+            }catch(Exception e){toast("Servers: "+e.getMessage());}
+        });
+    }
+
+    private void openServer(String serverId,String serverName,boolean owner){
+        base(serverName);
+        TextView description=label("Server channels and community messages",12,false);
+        description.setTextColor(0xFFAAB8CD);body.addView(description,full(dp(30)));
+        LinearLayout actions=new LinearLayout(this);actions.setOrientation(LinearLayout.HORIZONTAL);
+        Button join=button("Join server"),create=button("Create channel");
+        actions.addView(join,new LinearLayout.LayoutParams(0,dp(44),1));
+        actions.addView(create,new LinearLayout.LayoutParams(0,dp(44),1));
+        body.addView(actions,full(dp(48)));create.setVisibility(owner?View.VISIBLE:View.GONE);
+        ScrollView sc=new ScrollView(this);body.addView(sc,new LinearLayout.LayoutParams(-1,0,1));
+        LinearLayout list=new LinearLayout(this);list.setOrientation(LinearLayout.VERTICAL);sc.addView(list);
+        final boolean[] member={owner};
+        io.execute(()->{
+            try{
+                JSONArray membership=SupabaseClient.getArray("/rest/v1/server_members?select=role,is_banned&server_id=eq."+enc(serverId)+"&user_id=eq."+enc(uid()),token());
+                if(membership.length()>0&&!membership.getJSONObject(0).optBoolean("is_banned"))member[0]=true;
+                runOnUiThread(()->{
+                    join.setVisibility(member[0]?View.GONE:View.VISIBLE);
+                    create.setVisibility(owner?View.VISIBLE:View.GONE);
+                    if(member[0])loadServerChannels(serverId,serverName,list);
+                    else list.addView(label("Join this public server to see its channels.",14,false));
+                });
+            }catch(Exception e){toast("Server membership: "+e.getMessage());}
+        });
+        join.setOnClickListener(v->io.execute(()->{
+            try{
+                JSONObject row=new JSONObject();row.put("server_id",serverId);row.put("user_id",uid());row.put("role","member");
+                SupabaseClient.post("/rest/v1/server_members",token(),row);
+                runOnUiThread(()->{member[0]=true;join.setVisibility(View.GONE);loadServerChannels(serverId,serverName,list);});
+            }catch(Exception e){toast("Could not join server: "+e.getMessage());}
+        }));
+        create.setOnClickListener(v->{
+            LinearLayout box=new LinearLayout(this);box.setOrientation(LinearLayout.VERTICAL);
+            EditText name=field("Channel name",InputType.TYPE_CLASS_TEXT),topic=field("Channel topic (optional)",InputType.TYPE_CLASS_TEXT);
+            box.addView(name,full(dp(52)));box.addView(topic,full(dp(52)));
+            new AlertDialog.Builder(this).setTitle("Create text channel").setView(box)
+                .setPositiveButton("Create",(d,w)->io.execute(()->{
+                    try{
+                        String channelName=name.getText().toString().trim().replace(" ","-").toLowerCase(Locale.ROOT);
+                        if(channelName.isEmpty())throw new Exception("Enter a channel name.");
+                        JSONObject row=new JSONObject();row.put("server_id",serverId);row.put("name",channelName);
+                        row.put("topic",topic.getText().toString().trim());row.put("channel_type","text");row.put("created_by",uid());
+                        SupabaseClient.post("/rest/v1/server_channels",token(),row);
+                        runOnUiThread(()->loadServerChannels(serverId,serverName,list));
+                    }catch(Exception e){toast("Channel creation failed: "+e.getMessage());}
+                })).setNegativeButton("Cancel",null).show();
+        });
+    }
+
+    private void loadServerChannels(String serverId,String serverName,LinearLayout list){
+        io.execute(()->{
+            try{
+                JSONArray channels=SupabaseClient.getArray("/rest/v1/server_channels?select=id,name,topic,channel_type,position&server_id=eq."+enc(serverId)+"&order=position.asc,created_at.asc",token());
+                runOnUiThread(()->{
+                    list.removeAllViews();
+                    if(channels.length()==0)list.addView(label("No channels yet. A server manager can create one.",13,false));
+                    for(int n=0;n<channels.length();n++){
+                        JSONObject ch=channels.optJSONObject(n);if(ch==null)continue;
+                        String id=ch.optString("id"),name=ch.optString("name");
+                        Button b=button("#  "+name);b.setGravity(Gravity.START|Gravity.CENTER_VERTICAL);
+                        LinearLayout.LayoutParams p=full(dp(48));p.topMargin=dp(5);list.addView(b,p);
+                        b.setOnClickListener(v->openServerChannel(serverId,serverName,id,name));
+                    }
+                });
+            }catch(Exception e){toast("Channels: "+e.getMessage());}
+        });
+    }
+
+    private void openServerChannel(String serverId,String serverName,String channelId,String channelName){
+        base(serverName+"  /  #"+channelName);
+        TextView hint=label("Messages in this server channel",12,false);hint.setTextColor(0xFFAAB8CD);body.addView(hint,full(dp(28)));
+        ScrollView sc=new ScrollView(this);body.addView(sc,new LinearLayout.LayoutParams(-1,0,1));
+        LinearLayout messages=new LinearLayout(this);messages.setOrientation(LinearLayout.VERTICAL);sc.addView(messages);
+        LinearLayout composer=new LinearLayout(this);composer.setGravity(Gravity.CENTER_VERTICAL);
+        EditText input=field("Message #"+channelName,InputType.TYPE_CLASS_TEXT|InputType.TYPE_TEXT_FLAG_CAP_SENTENCES|InputType.TYPE_TEXT_FLAG_MULTI_LINE);
+        Button send=button("Send");composer.addView(input,new LinearLayout.LayoutParams(0,dp(54),1));
+        composer.addView(send,new LinearLayout.LayoutParams(dp(82),dp(50)));body.addView(composer,full(dp(58)));
+        Runnable refresh=()->io.execute(()->{
+            try{
+                JSONArray rows=SupabaseClient.getArray("/rest/v1/server_channel_messages?select=id,author_id,content,created_at,edited_at,deleted_at&channel_id=eq."+enc(channelId)+"&order=created_at.asc&limit=150",token());
+                runOnUiThread(()->{
+                    messages.removeAllViews();
+                    for(int n=0;n<rows.length();n++){
+                        JSONObject r=rows.optJSONObject(n);if(r==null)continue;
+                        String author=r.optString("author_id"),messageId=r.optString("id");
+                        String content=r.optString("deleted_at").isEmpty()?r.optString("content"):"[message deleted]";
+                        TextView line=label((author.equals(uid())?"You":"Member "+author.substring(0,Math.min(6,author.length())))+"\\n"+content,14,false);
+                        line.setPadding(dp(12),dp(10),dp(12),dp(10));
+                        GradientDrawable bg=new GradientDrawable();bg.setColor(author.equals(uid())?0xFF173D4A:0xFF1D3049);bg.setCornerRadius(dp(12));line.setBackground(bg);
+                        LinearLayout.LayoutParams p=full(-2);p.topMargin=dp(5);messages.addView(line,p);
+                        if(author.equals(uid()))line.setOnLongClickListener(v->{
+                            new AlertDialog.Builder(this).setItems(new String[]{"Delete message"},(d,w)->io.execute(()->{
+                                try{JSONObject patch=new JSONObject();patch.put("deleted_at",new java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX",Locale.US).format(new java.util.Date()));SupabaseClient.request("PATCH","/rest/v1/server_channel_messages?id=eq."+enc(messageId),token(),patch,null);runOnUiThread(refresh);}
+                                catch(Exception e){toast("Delete failed: "+e.getMessage());}
+                            })).show();return true;
+                        });
+                    }
+                    sc.post(()->sc.fullScroll(View.FOCUS_DOWN));
+                });
+            }catch(Exception e){toast("Messages: "+e.getMessage());}
+        });
+        refresh.run();
+        send.setOnClickListener(v->{
+            String value=input.getText().toString().trim();if(value.isEmpty())return;
+            send.setEnabled(false);
+            io.execute(()->{
+                try{
+                    JSONObject row=new JSONObject();row.put("server_id",serverId);row.put("channel_id",channelId);row.put("author_id",uid());row.put("content",value);
+                    SupabaseClient.post("/rest/v1/server_channel_messages",token(),row);
+                    runOnUiThread(()->{input.setText("");send.setEnabled(true);refresh.run();});
+                }catch(Exception e){runOnUiThread(()->send.setEnabled(true));toast("Send failed: "+e.getMessage());}
+            });
+        });
     }
 
     private void groups(){
