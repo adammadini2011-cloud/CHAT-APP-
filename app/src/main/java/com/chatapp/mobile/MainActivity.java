@@ -142,7 +142,7 @@ public class MainActivity extends AppCompatActivity {
         b.setGravity(Gravity.CENTER);
         GradientDrawable shape = new GradientDrawable(
             GradientDrawable.Orientation.LEFT_RIGHT,
-            new int[]{0xFF16C7B5, 0xFF245BFF}
+            new int[]{0xFF8B5CF6, 0xFF6D45D8}
         );
         shape.setCornerRadius(dp(18));
         android.content.res.ColorStateList rippleColor =
@@ -191,11 +191,11 @@ public class MainActivity extends AppCompatActivity {
         inChat=false; base("NEXORA","",null);
         content.setGravity(Gravity.CENTER_HORIZONTAL);
         content.setPadding(dp(24),dp(28),dp(24),dp(18));
-        TextView brand=text("∞",58,0xFF21D8FF,true); brand.setGravity(Gravity.CENTER);
+        TextView brand=text("∞",58,0xFFA78BFA,true); brand.setGravity(Gravity.CENTER);
         content.addView(brand,match(dp(70)));
         TextView title=text("NEXORA",29,Color.WHITE,true); title.setGravity(Gravity.CENTER);
         content.addView(title);
-        TextView sub=text("Your conversations, connected.",14,0xFFB8C5E8,false); sub.setGravity(Gravity.CENTER);
+        TextView sub=text("Your conversations, connected.",14,0xFFB7B0D5,false); sub.setGravity(Gravity.CENTER);
         LinearLayout.LayoutParams sp=match(dp(42)); sp.bottomMargin=dp(18); content.addView(sub,sp);
         EditText email=field("Email address",InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS);
         content.addView(email,match(dp(54)));
@@ -217,7 +217,7 @@ public class MainActivity extends AppCompatActivity {
         Button signIn=button("Sign in"), signUp=button("Create account");
         LinearLayout.LayoutParams bp=match(dp(52)); bp.topMargin=dp(14); content.addView(signIn,bp);
         LinearLayout.LayoutParams bp2=match(dp(52)); bp2.topMargin=dp(8); content.addView(signUp,bp2);
-        TextView divider=text("OR CONTINUE WITH",11,0xFF8998BE,true);
+        TextView divider=text("OR CONTINUE WITH",11,0xFF9BA3B8,true);
         divider.setGravity(Gravity.CENTER);
         LinearLayout.LayoutParams dpv=match(dp(42)); dpv.topMargin=dp(10); content.addView(divider,dpv);
         Button google=socialButton("Continue with Google",0xFFFFFFFF,0xFF18213D);
@@ -395,7 +395,7 @@ public class MainActivity extends AppCompatActivity {
     private EditText field(String hint,int type) {
         EditText e=new EditText(this); boolean multiline=(type&InputType.TYPE_TEXT_FLAG_MULTI_LINE)!=0; e.setSingleLine(!multiline); if(multiline){e.setMaxLines(4);e.setGravity(Gravity.CENTER_VERTICAL|Gravity.START);} e.setHint(tr(hint)); e.setInputType(type);
         e.setTextColor(Color.WHITE); e.setHintTextColor(0xFFAAB6C8); e.setPadding(dp(14),0,dp(14),0);
-        e.setBackgroundTintList(android.content.res.ColorStateList.valueOf(0xFF35C7A5)); return e;
+        e.setBackgroundTintList(android.content.res.ColorStateList.valueOf(0xFF35D49A)); return e;
     }
     private LinearLayout.LayoutParams match(int height) { return new LinearLayout.LayoutParams(-1,height); }
     private void auth(String email,String password,boolean signUp,TextView status) {
@@ -573,7 +573,7 @@ public class MainActivity extends AppCompatActivity {
             videoCall.setOnClickListener(v->startCall(item,"video"));
         }
         ScrollView sc=new ScrollView(this); sc.setFillViewport(false); content.addView(sc,new LinearLayout.LayoutParams(-1,0,1));
-        typingIndicator=text("",12,0xFF35C7A5,false);content.addView(typingIndicator,match(dp(24)));
+        typingIndicator=text("",12,0xFF35D49A,false);content.addView(typingIndicator,match(dp(24)));
         LinearLayout messages=new LinearLayout(this); messages.setOrientation(LinearLayout.VERTICAL); sc.addView(messages);
         LinearLayout composer=new LinearLayout(this); composer.setGravity(Gravity.CENTER_VERTICAL); composer.setPadding(0,dp(8),0,0);
         EditText input=field("Write a message…",InputType.TYPE_CLASS_TEXT|InputType.TYPE_TEXT_FLAG_MULTI_LINE);
@@ -719,14 +719,14 @@ public class MainActivity extends AppCompatActivity {
             if(!attachment.isEmpty())body="📎 Open attachment ("+m.optString("attachment_type","file")+")";
             TextView bubble=text(body,15,mine?Color.WHITE:0xFFE6EDF7,false);
             bubble.setPadding(dp(14),dp(10),dp(14),dp(10));
-            GradientDrawable bubbleShape=new GradientDrawable();bubbleShape.setColor(mine?0xFF176B63:0xFF263750);bubbleShape.setCornerRadius(dp(16));bubble.setBackground(bubbleShape);
+            GradientDrawable bubbleShape=new GradientDrawable();bubbleShape.setColor(mine?0xFF6D45D8:0xFF20263A);bubbleShape.setCornerRadius(dp(16));bubble.setBackground(bubbleShape);
             if(!attachment.isEmpty())bubble.setOnClickListener(v->openAttachment(attachment));
             LinearLayout line=new LinearLayout(this);line.setGravity(mine?Gravity.END:Gravity.START);
             if(mine) {
                 JSONArray receipts=m.optJSONArray("message_receipts");
                 boolean delivered=false, read=false;
                 if(receipts!=null) for(int ri=0;ri<receipts.length();ri++){JSONObject rr=receipts.optJSONObject(ri);if(rr!=null){delivered|=!rr.isNull("delivered_at");read|=!rr.isNull("read_at");}}
-                TextView status=text(read?"✓✓ Seen":(delivered?"✓✓ Delivered":"✓ Sent"),10,read?0xFF35C7A5:0xFFAAB6C8,false);
+                TextView status=text(read?"✓✓ Seen":(delivered?"✓✓ Delivered":"✓ Sent"),10,read?0xFF35D49A:0xFFAAB6C8,false);
                 LinearLayout bubbleWrap=new LinearLayout(this);bubbleWrap.setOrientation(LinearLayout.VERTICAL);bubbleWrap.addView(bubble);bubbleWrap.addView(status);
                 bubbleWrap.setOnLongClickListener(v->{showMessageActions(m);return true;});
                 if(!attachment.isEmpty()) bubbleWrap.setOnClickListener(v->openAttachment(attachment));
@@ -737,7 +737,7 @@ public class MainActivity extends AppCompatActivity {
                 receivedWrap.setOrientation(LinearLayout.VERTICAL);
                 receivedWrap.addView(bubble,new LinearLayout.LayoutParams(-2,-2));
                 if(attachment.isEmpty()&&!body.trim().isEmpty()){
-                    TextView translated=text("",13,0xFF9FB7D8,false);
+                    TextView translated=text("",13,0xFFB7B0D5,false);
                     translated.setVisibility(View.GONE);
                     translated.setPadding(dp(8),dp(5),dp(8),dp(2));
                     receivedWrap.addView(translated);
