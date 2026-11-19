@@ -52,21 +52,21 @@ public final class CommunityActivity extends AppCompatActivity {
     private Button button(String s){
         Button b=new Button(this);b.setText(s);b.setAllCaps(false);b.setTextColor(Color.WHITE);
         b.setTextSize(13);b.setTypeface(Typeface.DEFAULT,Typeface.BOLD);
-        GradientDrawable d=new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT,new int[]{0xFF13BDAF,0xFF315FEA});
+        GradientDrawable d=new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT,new int[]{0xFF8B5CF6,0xFF6D45D8});
         d.setCornerRadius(dp(15));b.setBackground(new android.graphics.drawable.RippleDrawable(
             android.content.res.ColorStateList.valueOf(0x44FFFFFF),d,null));b.setMinHeight(dp(44));return b;
     }
     private EditText field(String hint,int type){
         EditText e=new EditText(this);e.setSingleLine(false);e.setHint(hint);e.setTextColor(Color.WHITE);
-        e.setHintTextColor(0xFF8293AE);e.setTextSize(14);e.setInputType(type);e.setPadding(dp(13),dp(8),dp(13),dp(8));
-        GradientDrawable d=new GradientDrawable();d.setColor(0xFF1B2A40);d.setCornerRadius(dp(13));d.setStroke(dp(1),0xFF344A66);e.setBackground(d);return e;
+        e.setHintTextColor(0xFF9BA3B8);e.setTextSize(14);e.setInputType(type);e.setPadding(dp(13),dp(8),dp(13),dp(8));
+        GradientDrawable d=new GradientDrawable();d.setColor(0xFF151827);d.setCornerRadius(dp(13));d.setStroke(dp(1),0xFF2A3044);e.setBackground(d);return e;
     }
     private LinearLayout.LayoutParams full(int h){return new LinearLayout.LayoutParams(-1,h);}
     private void base(String title){
         if(channelPoll!=null)handler.removeCallbacks(channelPoll);
         if(serverRealtime!=null){serverRealtime.stop();serverRealtime=null;}
         channelPoll=null;activeServerChannelId="";activeChannelRefresh=null;
-        root=new LinearLayout(this);root.setOrientation(LinearLayout.VERTICAL);root.setPadding(dp(16),dp(12),dp(16),dp(12));root.setBackgroundColor(0xFF0B1423);setContentView(root);
+        root=new LinearLayout(this);root.setOrientation(LinearLayout.VERTICAL);root.setPadding(dp(16),dp(12),dp(16),dp(12));root.setBackgroundColor(0xFF0B0D16);setContentView(root);
         LinearLayout bar=new LinearLayout(this);bar.setGravity(Gravity.CENTER_VERTICAL);TextView heading=label(title,20,true);bar.addView(heading,new LinearLayout.LayoutParams(0,-2,1));
         Button back=button("Back");bar.addView(back, new LinearLayout.LayoutParams(dp(82),dp(42)));back.setOnClickListener(v->home());
         root.addView(bar,full(dp(52)));body=new LinearLayout(this);body.setOrientation(LinearLayout.VERTICAL);root.addView(body,new LinearLayout.LayoutParams(-1,0,1));
@@ -82,7 +82,7 @@ public final class CommunityActivity extends AppCompatActivity {
     }
     private void addNav(String title,String sub,Runnable action){
         Button b=button(title+"  ›");b.setGravity(Gravity.START|Gravity.CENTER_VERTICAL);LinearLayout.LayoutParams p=full(dp(54));p.topMargin=dp(9);body.addView(b,p);
-        TextView t=label(sub,12,false);t.setTextColor(0xFFAAB8CD);LinearLayout.LayoutParams q=full(dp(34));q.leftMargin=dp(8);body.addView(t,q);b.setOnClickListener(v->action.run());
+        TextView t=label(sub,12,false);t.setTextColor(0xFF9BA3B8);LinearLayout.LayoutParams q=full(dp(34));q.leftMargin=dp(8);body.addView(t,q);b.setOnClickListener(v->action.run());
     }
     @Override protected void onCreate(Bundle b){super.onCreate(b);if(uid().isEmpty()){finish();return;}home();}
 
@@ -106,7 +106,7 @@ public final class CommunityActivity extends AppCompatActivity {
         EditText text=field("Write a text status…",InputType.TYPE_CLASS_TEXT|InputType.TYPE_TEXT_FLAG_MULTI_LINE);body.addView(text,full(dp(64)));
         Button publish=button("Publish text status"),media=button("Add photo or video");
         LinearLayout.LayoutParams p=full(dp(46));p.topMargin=dp(7);body.addView(publish,p);p=full(dp(46));p.topMargin=dp(6);body.addView(media,p);
-        TextView hint=label("Statuses expire automatically after 24 hours.",12,false);hint.setTextColor(0xFFAAB8CD);body.addView(hint,full(dp(34)));
+        TextView hint=label("Statuses expire automatically after 24 hours.",12,false);hint.setTextColor(0xFF9BA3B8);body.addView(hint,full(dp(34)));
         ScrollView scroll=new ScrollView(this);body.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));LinearLayout list=new LinearLayout(this);list.setOrientation(LinearLayout.VERTICAL);scroll.addView(list);
         publish.setOnClickListener(v->{String value=text.getText().toString().trim();if(value.isEmpty()){toast("Write a status first.");return;}io.execute(()->{try{JSONObject r=new JSONObject();r.put("user_id",uid());r.put("kind","text");r.put("body",value);r.put("expires_at",new java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX",Locale.US).format(new java.util.Date(System.currentTimeMillis()+86400000L)));SupabaseClient.post("/rest/v1/statuses",token(),r);runOnUiThread(()->{toast("Status published.");statuses();});}catch(Exception e){toast("Publish failed: "+e.getMessage());}});});
         media.setOnClickListener(v->{Intent i=new Intent(Intent.ACTION_OPEN_DOCUMENT);i.addCategory(Intent.CATEGORY_OPENABLE);i.setType("*/*");i.putExtra(Intent.EXTRA_MIME_TYPES,new String[]{"image/jpeg","image/png","image/webp","image/gif","video/mp4"});startActivityForResult(i,PICK_STATUS_MEDIA);});
@@ -128,7 +128,7 @@ public final class CommunityActivity extends AppCompatActivity {
         publish.setOnClickListener(v->{String value=post.getText().toString().trim();if(value.isEmpty())return;io.execute(()->{try{JSONObject r=new JSONObject();r.put("channel_id",id);r.put("author_id",uid());r.put("body",value);SupabaseClient.post("/rest/v1/channel_posts",token(),r);runOnUiThread(()->{toast("Post published.");openChannel(id,name,own);});}catch(Exception e){toast(e.getMessage());}});});
         follow.setOnClickListener(v->{if(own)return;io.execute(()->{try{JSONArray old=SupabaseClient.getArray("/rest/v1/channel_members?select=role&channel_id=eq."+enc(id)+"&user_id=eq."+enc(uid()),token());if(old.length()>0)SupabaseClient.delete("/rest/v1/channel_members?channel_id=eq."+enc(id)+"&user_id=eq."+enc(uid()),token());else{JSONObject r=new JSONObject();r.put("channel_id",id);r.put("user_id",uid());r.put("role","follower");SupabaseClient.post("/rest/v1/channel_members",token(),r);}runOnUiThread(()->openChannel(id,name,false));}catch(Exception e){toast("Follow action failed: "+e.getMessage());}});});
         ScrollView sc=new ScrollView(this);body.addView(sc,new LinearLayout.LayoutParams(-1,0,1));LinearLayout list=new LinearLayout(this);list.setOrientation(LinearLayout.VERTICAL);sc.addView(list);
-        io.execute(()->{try{JSONArray rows=SupabaseClient.getArray("/rest/v1/channel_posts?select=id,body,created_at,channel_post_reactions(emoji,user_id)&channel_id=eq."+enc(id)+"&order=created_at.desc&limit=100",token());runOnUiThread(()->{list.removeAllViews();for(int n=0;n<rows.length();n++){JSONObject r=rows.optJSONObject(n);if(r==null)continue;TextView t=label(r.optString("body",""),15,false);t.setPadding(dp(12),dp(12),dp(12),dp(12));GradientDrawable bg=new GradientDrawable();bg.setColor(0xFF1D3049);bg.setCornerRadius(dp(14));t.setBackground(bg);LinearLayout.LayoutParams p=full(-2);p.topMargin=dp(6);list.addView(t,p);}});}catch(Exception e){toast("Posts: "+e.getMessage());}});
+        io.execute(()->{try{JSONArray rows=SupabaseClient.getArray("/rest/v1/channel_posts?select=id,body,created_at,channel_post_reactions(emoji,user_id)&channel_id=eq."+enc(id)+"&order=created_at.desc&limit=100",token());runOnUiThread(()->{list.removeAllViews();for(int n=0;n<rows.length();n++){JSONObject r=rows.optJSONObject(n);if(r==null)continue;TextView t=label(r.optString("body",""),15,false);t.setPadding(dp(12),dp(12),dp(12),dp(12));GradientDrawable bg=new GradientDrawable();bg.setColor(0xFF20263A);bg.setCornerRadius(dp(14));t.setBackground(bg);LinearLayout.LayoutParams p=full(-2);p.topMargin=dp(6);list.addView(t,p);}});}catch(Exception e){toast("Posts: "+e.getMessage());}});
     }
 
 
@@ -189,7 +189,7 @@ public final class CommunityActivity extends AppCompatActivity {
     private void openServer(String serverId,String serverName,boolean owner){
         base(serverName);
         TextView description=label("Server channels and community messages",12,false);
-        description.setTextColor(0xFFAAB8CD);body.addView(description,full(dp(30)));
+        description.setTextColor(0xFF9BA3B8);body.addView(description,full(dp(30)));
         LinearLayout actions=new LinearLayout(this);actions.setOrientation(LinearLayout.HORIZONTAL);
         Button join=button("Join server"),create=button("Create channel"),invite=button("Invite"),members=button("Members");
         actions.addView(join,new LinearLayout.LayoutParams(0,dp(44),1));
@@ -297,7 +297,7 @@ public final class CommunityActivity extends AppCompatActivity {
 
     private void openServerChannel(String serverId,String serverName,String channelId,String channelName){
         base(serverName+"  /  #"+channelName);
-        TextView hint=label("Messages in this server channel",12,false);hint.setTextColor(0xFFAAB8CD);body.addView(hint,full(dp(28)));
+        TextView hint=label("Messages in this server channel",12,false);hint.setTextColor(0xFF9BA3B8);body.addView(hint,full(dp(28)));
         ScrollView sc=new ScrollView(this);body.addView(sc,new LinearLayout.LayoutParams(-1,0,1));
         LinearLayout messages=new LinearLayout(this);messages.setOrientation(LinearLayout.VERTICAL);sc.addView(messages);
         LinearLayout composer=new LinearLayout(this);composer.setGravity(Gravity.CENTER_VERTICAL);
@@ -315,7 +315,7 @@ public final class CommunityActivity extends AppCompatActivity {
                         String content=r.optString("deleted_at").isEmpty()?r.optString("content"):"[message deleted]";
                         TextView line=label((author.equals(uid())?"You":"Member "+author.substring(0,Math.min(6,author.length())))+"\\n"+content,14,false);
                         line.setPadding(dp(12),dp(10),dp(12),dp(10));
-                        GradientDrawable bg=new GradientDrawable();bg.setColor(author.equals(uid())?0xFF173D4A:0xFF1D3049);bg.setCornerRadius(dp(12));line.setBackground(bg);
+                        GradientDrawable bg=new GradientDrawable();bg.setColor(author.equals(uid())?0xFF6D45D8:0xFF20263A);bg.setCornerRadius(dp(12));line.setBackground(bg);
                         LinearLayout.LayoutParams p=full(-2);p.topMargin=dp(5);messages.addView(line,p);
                         if(author.equals(uid()))line.setOnLongClickListener(v->{
                             new AlertDialog.Builder(this).setItems(new String[]{"Delete message"},(d,w)->io.execute(()->{
