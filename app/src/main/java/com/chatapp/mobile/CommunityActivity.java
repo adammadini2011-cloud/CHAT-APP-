@@ -85,8 +85,6 @@ public final class CommunityActivity extends AppCompatActivity {
 
     @Override protected void onPause(){if(channelPoll!=null)handler.removeCallbacks(channelPoll);super.onPause();}
     @Override protected void onResume(){super.onResume();if(channelPoll!=null)handler.postDelayed(channelPoll,1500L);}
-    @Override protected void onDestroy(){if(channelPoll!=null)handler.removeCallbacks(channelPoll);io.shutdown();super.onDestroy();}
-
     private void statuses(){
         base("Statuses");
         EditText text=field("Write a text status…",InputType.TYPE_CLASS_TEXT|InputType.TYPE_TEXT_FLAG_MULTI_LINE);body.addView(text,full(dp(64)));
@@ -367,5 +365,5 @@ public final class CommunityActivity extends AppCompatActivity {
         save.setOnClickListener(v->io.execute(()->{try{JSONObject r=new JSONObject();r.put("user_id",uid());r.put("last_seen_visibility",selected[0]);r.put("photo_visibility",selected[1]);r.put("status_visibility",selected[2]);SupabaseClient.upsert("/rest/v1/user_privacy?on_conflict=user_id",token(),r);toast("Privacy settings saved.");}catch(Exception e){toast("Privacy save failed: "+e.getMessage());}}));
     }
     private String labelsFor(int i){return new String[]{"Last seen","Profile photo","Status visibility"}[i];}
-    @Override protected void onDestroy(){io.shutdown();super.onDestroy();}
+    @Override protected void onDestroy(){if(channelPoll!=null)handler.removeCallbacks(channelPoll);if(serverRealtime!=null)serverRealtime.stop();io.shutdown();super.onDestroy();}
 }
