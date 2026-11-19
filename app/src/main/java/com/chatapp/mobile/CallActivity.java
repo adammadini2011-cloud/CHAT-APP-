@@ -306,13 +306,19 @@ public final class CallActivity extends AppCompatActivity {
     }
 
     private CameraVideoCapturer createCameraCapturer(CameraEnumerator enumerator) {
-        String front = enumerator.getNameOfFrontFacingDevice();
-        if (front != null) {
-            CameraVideoCapturer capturer = enumerator.createCapturer(front, null);
-            if (capturer != null) return capturer;
+        for (String name : enumerator.getDeviceNames()) {
+            if (enumerator.isFrontFacing(name)) {
+                CameraVideoCapturer capturer = enumerator.createCapturer(name, null);
+                if (capturer != null) return capturer;
+            }
         }
-        String back = enumerator.getNameOfBackFacingDevice();
-        return back == null ? null : enumerator.createCapturer(back, null);
+        for (String name : enumerator.getDeviceNames()) {
+            if (enumerator.isBackFacing(name)) {
+                CameraVideoCapturer capturer = enumerator.createCapturer(name, null);
+                if (capturer != null) return capturer;
+            }
+        }
+        return null;
     }
 
     private void createOffer() {
